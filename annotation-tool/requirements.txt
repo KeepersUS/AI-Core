@@ -1,0 +1,17 @@
+# Image Annotation Tool Requirements
+# Install with: pip install -r requirements.txt
+
+# Core dependencies
+Pillow>=10.0.0
+numpy>=1.24.0
+
+# Optional: For GroundingDINO integration
+# Note: These require the parent directory's GroundingDINO installation
+torch>=2.0.0
+torchvision>=0.15.0
+opencv-python>=4.8.0
+
+# GroundingDINO (from GitHub)
+# Install with: pip install git+https://github.com/IDEA-Research/GroundingDINO.git
+# Or see parent directory's installation instructions
+

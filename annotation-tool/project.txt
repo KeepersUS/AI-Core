@@ -1,0 +1,89 @@
+This is an annotation tool. It requires:
+
+-Python
+-Given an image (image-name.jpg or image-name.jpeg), the output will be <image-name>.json
+-Needs to be able to draw bounding boxes and label them with an enumerated list imported from a python file(object_list.py).
+If file is not present, do manual labelling.
+-Needs to do a first pass with groundingDino and allow boxes to be added/removed/altered by dragging mouse after first pass.
+
+-BBox output/json should match format:
+'''
+{
+  "image": "kitchen2.jpg",
+  "objects": [
+    {
+      "class": "sink",
+      "bbox": [
+        49,
+        237,
+        244,
+        384
+      ]
+    },
+    {
+      "class": "potted plant",
+      "bbox": [
+        320,
+        241,
+        411,
+        367
+      ]
+    },
+    {
+      "class": "potted plant",
+      "bbox": [
+        515,
+        258,
+        566,
+        323
+      ]
+    },
+    {
+      "class": "chair",
+      "bbox": [
+        399,
+        281,
+        528,
+        475
+      ]
+    },
+    {
+      "class": "chair",
+      "bbox": [
+        525,
+        295,
+        638,
+        477
+      ]
+    },
+    {
+      "class": "chair",
+      "bbox": [
+        483,
+        258,
+        529,
+        309
+      ]
+    },
+    {
+      "class": "chair",
+      "bbox": [
+        572,
+        263,
+        639,
+        317
+      ]
+    },
+    {
+      "class": "couch",
+      "bbox": [
+        265,
+        221,
+        378,
+        321
+      ]
+    }
+  ]
+}
+'''
+
