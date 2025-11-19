@@ -1024,33 +1024,74 @@ class AnnotationTool:
         try:
             import requests
             
-            # TODO: Implement actual API call for detection
-            # This is a placeholder structure for when you add the endpoint
+            detect_url = f"{self.api_url}/detect"
             
-            # Example structure for future implementation:
-            # detect_url = f"{self.api_url}/detect"
-            # 
-            # with open(self.image_path, 'rb') as f:
-            #     files = {'image': f}
-            #     data = {'classes': ','.join(OBJECT_CLASSES)}
-            #     response = requests.post(detect_url, files=files, data=data, timeout=30)
-            # 
-            # if response.status_code == 200:
-            #     detections = response.json()
-            #     # Process detections and add to self.bboxes
-            #     ...
+            # Prepare form data
+            data = {
+                'classes': ','.join(OBJECT_CLASSES),
+                'use_gpu': 'true'
+            }
             
-            messagebox.showinfo("API Detection",
-                              "API detection endpoint not yet implemented.\n\n"
-                              f"API URL: {self.api_url}\n\n"
-                              "This feature will call the /detect endpoint when implemented.")
-            self.update_status("API detection: Endpoint not yet implemented")
+            # Send image to API
+            with open(self.image_path, 'rb') as f:
+                files = {'image': (os.path.basename(self.image_path), f, 'image/jpeg')}
+                response = requests.post(detect_url, files=files, data=data, timeout=60)
+            
+            if response.status_code == 200:
+                result = response.json()
+                detections = result.get('objects', [])
+                
+                # Convert detections to bounding boxes (scaled for display)
+                for det in detections:
+                    bbox_coords = det['bbox']  # [x1, y1, x2, y2]
+                    class_name = det.get('class', 'unknown')
+                    confidence = det.get('confidence', 1.0)
+                    
+                    # Scale coordinates for display
+                    x1 = int(bbox_coords[0] * self.scale_factor)
+                    y1 = int(bbox_coords[1] * self.scale_factor)
+                    x2 = int(bbox_coords[2] * self.scale_factor)
+                    y2 = int(bbox_coords[3] * self.scale_factor)
+                    
+                    bbox = BoundingBox(x1, y1, x2, y2, class_name, confidence)
+                    self.bboxes.append(bbox)
+                
+                self.redraw_canvas()
+                self.update_bbox_list()
+                
+                exec_time = result.get('execution_time_seconds', 0)
+                self.update_status(f"API detected {len(detections)} objects ({exec_time:.2f}s)")
+                
+                messagebox.showinfo("API Detection Complete",
+                                  f"Successfully detected {len(detections)} objects\n\n"
+                                  f"Execution time: {exec_time:.2f}s")
+            else:
+                error_detail = response.json() if response.headers.get('content-type') == 'application/json' else response.text
+                messagebox.showerror("API Error",
+                                   f"API returned status {response.status_code}\n\n"
+                                   f"Details: {error_detail}")
+                self.update_status(f"API detection failed: Status {response.status_code}")
             
         except ImportError:
             messagebox.showerror("Missing Dependency",
                                "The 'requests' library is not installed.\n\n"
                                "Install it with: pip install requests")
             self.update_status("Error: requests library not found")
+        except requests.exceptions.Timeout:
+            messagebox.showerror("Connection Timeout",
+                               f"Request to API timed out.\n\n"
+                               f"Endpoint: {self.api_url}/detect\n\n"
+                               f"The detection may take longer than expected.")
+            self.update_status("API detection timeout")
+        except requests.exceptions.ConnectionError:
+            messagebox.showerror("Connection Error",
+                               f"Could not connect to API.\n\n"
+                               f"Endpoint: {self.api_url}/detect\n\n"
+                               f"Please check:\n"
+                               f"• The API is running\n"
+                               f"• The URL is correct\n"
+                               f"• Network connectivity")
+            self.update_status("API connection failed")
         except Exception as e:
             messagebox.showerror("Error", f"API detection failed:\n{str(e)}")
             self.update_status(f"API detection error: {str(e)}")
@@ -1170,43 +1211,44 @@ class AnnotationTool:
                     progress_dialog.update()
                     
                     try:
-                        # TODO: Implement actual API call for detection
-                        # This is a placeholder - replace with your actual endpoint call
+                        # Call API detection endpoint
+                        detect_url = f"{self.api_url}/detect"
                         
-                        # Example structure for future implementation:
-                        # detect_url = f"{self.api_url}/detect"
-                        # 
-                        # with open(image_path, 'rb') as f:
-                        #     files = {'image': f}
-                        #     data = {'classes': ','.join(OBJECT_CLASSES)}
-                        #     response = requests.post(detect_url, files=files, data=data, timeout=30)
-                        # 
-                        # if response.status_code == 200:
-                        #     detections = response.json()
-                        #     
-                        #     # Save JSON annotation
-                        #     json_path = os.path.splitext(image_path)[0] + '.json'
-                        #     output = {
-                        #         "image": filename,
-                        #         "objects": detections.get('objects', [])
-                        #     }
-                        #     
-                        #     with open(json_path, 'w') as f:
-                        #         json.dump(output, f, indent=2)
-                        #     
-                        #     successful += 1
-                        #     log_text.insert(tk.END, f"  ✓ Success: Saved {len(detections.get('objects', []))} objects\n", 'success')
-                        # else:
-                        #     failed += 1
-                        #     log_text.insert(tk.END, f"  ✗ Failed: API returned status {response.status_code}\n", 'error')
+                        # Prepare form data
+                        data = {
+                            'classes': ','.join(OBJECT_CLASSES),
+                            'use_gpu': 'true'
+                        }
                         
-                        # Placeholder message for now
-                        log_text.insert(tk.END, 
-                                      f"  ⚠ Skipped: API endpoint not yet implemented\n",
-                                      'warning')
-                        log_text.insert(tk.END, 
-                                      f"  → Would call: {self.api_url}/detect\n",
-                                      'info')
+                        # Send image to API
+                        with open(image_path, 'rb') as f:
+                            files = {'image': (filename, f, 'image/jpeg')}
+                            response = requests.post(detect_url, files=files, data=data, timeout=60)
+                        
+                        if response.status_code == 200:
+                            result = response.json()
+                            detections = result.get('objects', [])
+                            
+                            # Save JSON annotation
+                            json_path = os.path.splitext(image_path)[0] + '.json'
+                            output = {
+                                "image": filename,
+                                "objects": detections
+                            }
+                            
+                            with open(json_path, 'w') as f:
+                                json.dump(output, f, indent=2)
+                            
+                            successful += 1
+                            exec_time = result.get('execution_time_seconds', 0)
+                            log_text.insert(tk.END, 
+                                          f"  ✓ Success: {len(detections)} objects ({exec_time:.2f}s)\n", 
+                                          'success')
+                        else:
+                            failed += 1
+                            log_text.insert(tk.END, 
+                                          f"  ✗ Failed: API returned status {response.status_code}\n", 
+                                          'error')
                         
                     except requests.exceptions.Timeout:
                         failed += 1
