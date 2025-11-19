@@ -29,6 +29,9 @@ RUN python3.11 -m pip install --no-cache-dir \
       "matplotlib>=3.7.0" \
       fastapi uvicorn[standard] python-multipart
 
+# System metrics dependency for /metrics endpoint
+RUN python3.11 -m pip install --no-cache-dir psutil>=5.9.0
+
 # GroundingDINO from source - clone and build with proper CUDA support
 ARG GD_REF=856dde20aee659246248e20734ef9ba5214f5e44
 RUN git clone https://github.com/IDEA-Research/GroundingDINO.git /tmp/GroundingDINO && \

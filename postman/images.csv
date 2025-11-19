@@ -1,0 +1,15 @@
+imagePath,refPath
+C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\images\bedroom1.jpeg,C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\labels\bedroom1.json
+C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\images\bedroom2.jpeg,C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\labels\bedroom2.json
+C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\images\bedroom3.jpeg,C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\labels\bedroom3.json
+C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\images\dense1.jpeg,C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\labels\dense1.json
+C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\images\kitchen1.jpeg,C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\labels\kitchen1.json
+C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\images\kitchen2.jpg,C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\labels\kitchen2.json
+C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\images\living1.jpg,C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\labels\living1.json
+C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\images\living2.jpg,C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\labels\living2.json
+C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\images\living3.jpg,C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\labels\living3.json
+C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\images\office1.jpeg,C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\labels\office1.json
+C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\images\toilet.jpg,C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\labels\toilet.json
+# Duplicate last to reach 12 rows (≈60s @5s interval)
+C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\images\toilet.jpg,C:\Users\tbbti\Keepers-Compare\ai-models-comparison\test_photos\labels\toilet.json
+

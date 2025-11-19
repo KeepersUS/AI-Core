@@ -1,0 +1,164 @@
+{
+  "info": {
+    "name": "GroundingDINO Performance Tests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "6f1d1a6a-7fff-4a4e-9f3a-collection-groundingdino"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "use_gpu", "value": "true" },
+    { "key": "create_overlay", "value": "false" }
+  ],
+  "item": [
+    {
+      "name": "Warmup",
+      "item": [
+        {
+          "name": "Warmup",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/warmup",
+              "host": ["{{baseUrl}}"],
+              "path": ["warmup"]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "use_gpu", "type": "text", "value": "{{use_gpu}}" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Warmup OK', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Run",
+      "item": [
+        {
+          "name": "Run detection",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/run",
+              "host": ["{{baseUrl}}"],
+              "path": ["run"]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "image", "type": "file", "src": "{{imagePath}}" },
+                { "key": "reference_json", "type": "file", "src": "{{refPath}}" },
+                { "key": "use_gpu", "type": "text", "value": "{{use_gpu}}" },
+                { "key": "create_overlay", "type": "text", "value": "{{create_overlay}}" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Capture client and server timings, then fetch system metrics",
+                  "let clientMs = pm.response.responseTime;",
+                  "let serverMs = 0;",
+                  "try {",
+                  "  const body = pm.response.json();",
+                  "  if (body && typeof body.execution_time_seconds === 'number') {",
+                  "    serverMs = body.execution_time_seconds * 1000;",
+                  "  }",
+                  "} catch (e) {}",
+                  "",
+                  "(function recordAndMaybeRender(extraMetrics) {",
+                  "  const rec = {",
+                  "    ts: new Date().toISOString(),",
+                  "    client_ms: clientMs,",
+                  "    server_ms: serverMs,",
+                  "    metrics: extraMetrics || null",
+                  "  };",
+                  "  let results = [];",
+                  "  try { results = JSON.parse(pm.collectionVariables.get('results') || '[]'); } catch(e) { results = []; }",
+                  "  results.push(rec);",
+                  "  pm.collectionVariables.set('results', JSON.stringify(results));",
+                  "  console.log('RESULT', JSON.stringify(rec));",
+                  "",
+                  "  // If this is the last iteration in Runner, render a small table",
+                  "  if (pm.info && pm.info.iteration !== undefined && (pm.info.iteration === pm.info.iterationCount - 1)) {",
+                  "    const tmpl = `",
+                  "      <style>table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px}</style>",
+                  "      <table>",
+                  "        <tr><th>#</th><th>Timestamp</th><th>Client ms</th><th>Server ms</th><th>CPU%</th><th>RAM%</th><th>GPU%</th><th>GPU Mem%</th></tr>",
+                  "        {{#each rows}}",
+                  "          <tr>",
+                  "            <td>{{@index}}</td>",
+                  "            <td>{{ts}}</td>",
+                  "            <td>{{client_ms}}</td>",
+                  "            <td>{{server_ms}}</td>",
+                  "            <td>{{cpu}}</td>",
+                  "            <td>{{ram}}</td>",
+                  "            <td>{{gpu}}</td>",
+                  "            <td>{{gpu_mem}}</td>",
+                  "          </tr>",
+                  "        {{/each}}",
+                  "      </table>`;",
+                  "    const rows = results.map(r => ({",
+                  "      ts: r.ts,",
+                  "      client_ms: r.client_ms,",
+                  "      server_ms: r.server_ms,",
+                  "      cpu: r.metrics && r.metrics.cpu_percent != null ? r.metrics.cpu_percent : '',",
+                  "      ram: r.metrics && r.metrics.memory && r.metrics.memory.percent != null ? r.metrics.memory.percent : '',",
+                  "      gpu: r.metrics && r.metrics.gpus && r.metrics.gpus[0] && r.metrics.gpus[0].utilization_gpu_percent != null ? r.metrics.gpus[0].utilization_gpu_percent : '',",
+                  "      gpu_mem: r.metrics && r.metrics.gpus && r.metrics.gpus[0] && r.metrics.gpus[0].memory_percent != null ? r.metrics.gpus[0].memory_percent : ''",
+                  "    }));",
+                  "    pm.visualizer.set(tmpl, { rows });",
+                  "  }",
+                  "});",
+                  "",
+                  "// Try to fetch metrics from API for richer reporting (optional)",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{baseUrl}}/metrics'),",
+                  "  method: 'GET'",
+                  "}, function (err, res) {",
+                  "  if (err || !res) {",
+                  "    recordAndMaybeRender(null);",
+                  "    return;",
+                  "  }",
+                  "  try {",
+                  "    recordAndMaybeRender(res.json());",
+                  "  } catch (e) {",
+                  "    recordAndMaybeRender(null);",
+                  "  }",
+                  "});",
+                  "",
+                  "pm.test('HTTP 200', function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test('Timings captured', function () {",
+                  "  pm.expect(clientMs).to.be.a('number');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+

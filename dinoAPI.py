@@ -3,6 +3,7 @@ import json
 import time
 import traceback
 from typing import Optional, Dict, Any, List
+import subprocess
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -449,6 +450,99 @@ async def run_model(
                 "image_path": image_path
             }
         )
+
+
+def _collect_system_metrics() -> Dict[str, Any]:
+    try:
+        import psutil  # installed in container
+    except Exception:
+        psutil = None
+
+    cpu_percent = None
+    memory = None
+    uptime_seconds = None
+    if psutil is not None:
+        try:
+            cpu_percent = psutil.cpu_percent(interval=0.0)
+        except Exception:
+            cpu_percent = None
+        try:
+            vm = psutil.virtual_memory()
+            memory = {
+                "total_bytes": int(vm.total),
+                "available_bytes": int(vm.available),
+                "used_bytes": int(vm.used),
+                "percent": float(vm.percent),
+            }
+        except Exception:
+            memory = None
+        try:
+            now = time.time()
+            uptime_seconds = max(0.0, now - float(psutil.boot_time()))
+        except Exception:
+            uptime_seconds = None
+
+    gpus: List[Dict[str, Any]] = []
+    try:
+        # Query nvidia-smi; available when running with NVIDIA runtime
+        # Returns per-GPU rows like: "45, 1024, 16384"
+        out = subprocess.check_output([
+            "nvidia-smi",
+            "--query-gpu=uuid,name,utilization.gpu,memory.used,memory.total",
+            "--format=csv,noheader,nounits"
+        ], stderr=subprocess.STDOUT, timeout=2.0)
+        lines = out.decode("utf-8", errors="ignore").strip().splitlines()
+        for line in lines:
+            parts = [p.strip() for p in line.split(",")]
+            if len(parts) >= 5:
+                uuid, name, util_gpu, mem_used, mem_total = parts[:5]
+                try:
+                    util_gpu = float(util_gpu)
+                except Exception:
+                    util_gpu = None
+                try:
+                    mem_used = float(mem_used)
+                except Exception:
+                    mem_used = None
+                try:
+                    mem_total = float(mem_total)
+                except Exception:
+                    mem_total = None
+                mem_percent = None
+                if mem_used is not None and mem_total:
+                    try:
+                        mem_percent = (mem_used / mem_total) * 100.0
+                    except Exception:
+                        mem_percent = None
+                gpus.append({
+                    "uuid": uuid,
+                    "name": name,
+                    "utilization_gpu_percent": util_gpu,
+                    "memory_used_mb": mem_used,
+                    "memory_total_mb": mem_total,
+                    "memory_percent": mem_percent
+                })
+    except Exception:
+        # GPU info not available; leave empty
+        gpus = []
+
+    return {
+        "cpu_percent": cpu_percent,
+        "memory": memory,
+        "uptime_seconds": uptime_seconds,
+        "gpus": gpus
+    }
+
+
+@app.get("/metrics")
+async def get_system_metrics():
+    """
+    Returns instantaneous CPU, RAM, and GPU utilization on the host/container.
+    GPU data requires NVIDIA runtime (nvidia-smi available).
+    """
+    metrics = _collect_system_metrics()
+    metrics["timestamp_epoch_seconds"] = time.time()
+    return JSONResponse(content=metrics)
 
 
 if __name__ == "__main__":
