@@ -115,6 +115,10 @@ class AnnotationTool:
         self.canvas_width = 1000
         self.canvas_height = 800
         
+        # API Configuration
+        self.api_url = "http://localhost:5000"  # Default API URL
+        self.use_api = False  # Toggle between local model and API
+        
         # Colors
         self.bbox_color = "#00FF00"  # Green for unselected
         self.selected_color = "#FF0000"  # Red for selected
@@ -143,9 +147,17 @@ class AnnotationTool:
         
         edit_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Edit", menu=edit_menu)
-        edit_menu.add_command(label="Run GroundingDINO", command=self.run_grounding_dino)
+        edit_menu.add_command(label="Run GroundingDINO (Local)", command=self.run_grounding_dino)
+        edit_menu.add_command(label="Run API Detection", command=self.run_api_detection)
+        edit_menu.add_command(label="Batch Process Directory (API)", command=self.batch_process_directory)
+        edit_menu.add_separator()
         edit_menu.add_command(label="Clear All Boxes", command=self.clear_all_boxes)
         edit_menu.add_command(label="Delete Selected (Del)", command=self.delete_selected_bbox)
+        
+        settings_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Settings", menu=settings_menu)
+        settings_menu.add_command(label="Configure API Endpoint", command=self.configure_api)
+        settings_menu.add_command(label="Test API Connection", command=self.test_api_health)
         
         # Main container
         main_frame = tk.Frame(self.root)
@@ -186,8 +198,12 @@ class AnnotationTool:
         toolbar_frame.pack(fill=tk.X, pady=5)
         
         tk.Button(toolbar_frame, text="Open Image", command=self.open_image).pack(side=tk.LEFT, padx=2)
-        tk.Button(toolbar_frame, text="Auto-Detect (DINO)", command=self.run_grounding_dino,
+        tk.Button(toolbar_frame, text="Auto-Detect (Local)", command=self.run_grounding_dino,
                  bg='lightblue').pack(side=tk.LEFT, padx=2)
+        tk.Button(toolbar_frame, text="Auto-Detect (API)", command=self.run_api_detection,
+                 bg='lightyellow').pack(side=tk.LEFT, padx=2)
+        tk.Button(toolbar_frame, text="Batch Process Dir", command=self.batch_process_directory,
+                 bg='#FFD700').pack(side=tk.LEFT, padx=2)
         tk.Button(toolbar_frame, text="Save JSON", command=self.save_annotations,
                  bg='lightgreen').pack(side=tk.LEFT, padx=2)
         tk.Button(toolbar_frame, text="Clear All", command=self.clear_all_boxes).pack(side=tk.LEFT, padx=2)
@@ -206,13 +222,15 @@ class AnnotationTool:
         
         instructions_text = """
 • Open an image to start
-• Auto-Detect: Run GroundingDINO
+• Auto-Detect: Local model or API
+• Batch Process: Process entire directory
 • Draw: Click and drag to create box
 • Select: Click on existing box
 • Move: Drag selected box
 • Resize: Drag corner/edge handles
 • Delete: Press Delete or Backspace
-• Label: Select class from list below
+• Label: Search and select class
+• Settings: Configure API endpoint
         """
         tk.Label(instructions, text=instructions_text, justify=tk.LEFT, font=('Arial', 9)).pack()
         
@@ -239,6 +257,17 @@ class AnnotationTool:
         
         tk.Label(class_frame, text="Assign class to selected box:").pack(anchor=tk.W)
         
+        # Search field for classes
+        search_frame = tk.Frame(class_frame)
+        search_frame.pack(fill=tk.X, pady=(5, 2))
+        
+        tk.Label(search_frame, text="Search:").pack(side=tk.LEFT)
+        self.class_search_var = tk.StringVar()
+        self.class_search_var.trace('w', self.filter_classes)
+        self.class_search_entry = tk.Entry(search_frame, textvariable=self.class_search_var)
+        self.class_search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
+        
+        # Class dropdown
         self.class_var = tk.StringVar()
         self.class_combobox = ttk.Combobox(class_frame, textvariable=self.class_var,
                                            values=sorted(OBJECT_CLASSES), state='readonly')
@@ -247,6 +276,7 @@ class AnnotationTool:
             self.class_combobox.current(0)
         
         self.class_combobox.bind('<<ComboboxSelected>>', self.on_class_changed)
+        self.all_classes = sorted(OBJECT_CLASSES)  # Store all classes for filtering
         
         # Quick actions
         actions_frame = tk.Frame(right_frame, padx=10, pady=5)
@@ -847,6 +877,376 @@ class AnnotationTool:
             self.redraw_canvas()
             self.update_bbox_list()
             self.update_status(f"Changed class to: {new_class}")
+    
+    def filter_classes(self, *args):
+        """Filter class list based on search text"""
+        search_text = self.class_search_var.get().lower()
+        
+        if not search_text:
+            # Show all classes if search is empty
+            self.class_combobox['values'] = self.all_classes
+        else:
+            # Filter classes that contain the search text
+            filtered = [cls for cls in self.all_classes if search_text in cls.lower()]
+            self.class_combobox['values'] = filtered
+            
+            # If current selection is not in filtered list, clear it
+            if self.class_var.get() and self.class_var.get() not in filtered:
+                if filtered:
+                    self.class_combobox.set(filtered[0])
+    
+    def configure_api(self):
+        """Open dialog to configure API endpoint"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Configure API Endpoint")
+        dialog.geometry("500x200")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Center the dialog
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (dialog.winfo_width() // 2)
+        y = (dialog.winfo_screenheight() // 2) - (dialog.winfo_height() // 2)
+        dialog.geometry(f"+{x}+{y}")
+        
+        # API URL input
+        main_frame = tk.Frame(dialog, padx=20, pady=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        tk.Label(main_frame, text="API Base URL:", font=('Arial', 10, 'bold')).pack(anchor=tk.W, pady=(0, 5))
+        
+        url_var = tk.StringVar(value=self.api_url)
+        url_entry = tk.Entry(main_frame, textvariable=url_var, font=('Arial', 10))
+        url_entry.pack(fill=tk.X, pady=(0, 10))
+        
+        tk.Label(main_frame, text="Example: http://localhost:5000 or https://api.example.com",
+                font=('Arial', 8), fg='gray').pack(anchor=tk.W, pady=(0, 10))
+        
+        # Info label
+        info_text = "The API should provide:\n• /health endpoint for health checks\n• /detect endpoint for object detection (to be implemented)"
+        tk.Label(main_frame, text=info_text, justify=tk.LEFT, font=('Arial', 9),
+                fg='blue').pack(anchor=tk.W, pady=(0, 15))
+        
+        # Buttons
+        button_frame = tk.Frame(main_frame)
+        button_frame.pack(fill=tk.X)
+        
+        def save_and_close():
+            new_url = url_var.get().strip()
+            if new_url:
+                # Remove trailing slash
+                self.api_url = new_url.rstrip('/')
+                self.update_status(f"API URL updated: {self.api_url}")
+                dialog.destroy()
+            else:
+                messagebox.showwarning("Invalid URL", "Please enter a valid URL", parent=dialog)
+        
+        tk.Button(button_frame, text="Save", command=save_and_close,
+                 bg='lightgreen', width=15).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="Cancel", command=dialog.destroy,
+                 width=15).pack(side=tk.LEFT, padx=5)
+        
+        # Focus on entry
+        url_entry.focus_set()
+        url_entry.select_range(0, tk.END)
+    
+    def test_api_health(self):
+        """Test API connection with health check endpoint"""
+        self.update_status("Testing API connection...")
+        self.root.update()
+        
+        try:
+            import requests
+            
+            health_url = f"{self.api_url}/health"
+            response = requests.get(health_url, timeout=5)
+            
+            if response.status_code == 200:
+                messagebox.showinfo("API Health Check",
+                                   f"✓ API is healthy!\n\n"
+                                   f"Endpoint: {health_url}\n"
+                                   f"Status: {response.status_code}\n"
+                                   f"Response: {response.text[:100]}")
+                self.update_status(f"API health check successful: {self.api_url}")
+            else:
+                messagebox.showwarning("API Health Check",
+                                      f"API responded with status {response.status_code}\n\n"
+                                      f"Endpoint: {health_url}")
+                self.update_status(f"API health check failed: Status {response.status_code}")
+                
+        except ImportError:
+            messagebox.showerror("Missing Dependency",
+                               "The 'requests' library is not installed.\n\n"
+                               "Install it with: pip install requests")
+            self.update_status("Error: requests library not found")
+        except requests.exceptions.Timeout:
+            messagebox.showerror("Connection Timeout",
+                               f"Connection to API timed out.\n\n"
+                               f"Endpoint: {self.api_url}/health\n\n"
+                               f"Please check the URL and try again.")
+            self.update_status("API health check timeout")
+        except requests.exceptions.ConnectionError:
+            messagebox.showerror("Connection Error",
+                               f"Could not connect to API.\n\n"
+                               f"Endpoint: {self.api_url}/health\n\n"
+                               f"Please check:\n"
+                               f"• The API is running\n"
+                               f"• The URL is correct\n"
+                               f"• Network connectivity")
+            self.update_status("API connection failed")
+        except Exception as e:
+            messagebox.showerror("Error", f"Health check failed:\n{str(e)}")
+            self.update_status(f"API health check error: {str(e)}")
+    
+    def run_api_detection(self):
+        """Run object detection using API endpoint"""
+        if not self.image_path:
+            messagebox.showwarning("No Image", "Please load an image first")
+            return
+        
+        # Ask user if they want to clear existing boxes
+        if self.bboxes:
+            result = messagebox.askyesnocancel(
+                "Clear Existing Boxes?",
+                "Do you want to clear existing annotations before running API detection?\n\n"
+                "Yes: Clear and run detection\n"
+                "No: Add to existing boxes\n"
+                "Cancel: Don't run detection"
+            )
+            if result is None:  # Cancel
+                return
+            elif result:  # Yes
+                self.bboxes = []
+        
+        self.update_status("Running API detection... Please wait...")
+        self.root.update()
+        
+        try:
+            import requests
+            
+            # TODO: Implement actual API call for detection
+            # This is a placeholder structure for when you add the endpoint
+            
+            # Example structure for future implementation:
+            # detect_url = f"{self.api_url}/detect"
+            # 
+            # with open(self.image_path, 'rb') as f:
+            #     files = {'image': f}
+            #     data = {'classes': ','.join(OBJECT_CLASSES)}
+            #     response = requests.post(detect_url, files=files, data=data, timeout=30)
+            # 
+            # if response.status_code == 200:
+            #     detections = response.json()
+            #     # Process detections and add to self.bboxes
+            #     ...
+            
+            messagebox.showinfo("API Detection",
+                              "API detection endpoint not yet implemented.\n\n"
+                              f"API URL: {self.api_url}\n\n"
+                              "This feature will call the /detect endpoint when implemented.")
+            self.update_status("API detection: Endpoint not yet implemented")
+            
+        except ImportError:
+            messagebox.showerror("Missing Dependency",
+                               "The 'requests' library is not installed.\n\n"
+                               "Install it with: pip install requests")
+            self.update_status("Error: requests library not found")
+        except Exception as e:
+            messagebox.showerror("Error", f"API detection failed:\n{str(e)}")
+            self.update_status(f"API detection error: {str(e)}")
+    
+    def batch_process_directory(self):
+        """Batch process all images in a directory using API endpoint"""
+        # Get directory to process
+        if self.image_path:
+            initial_dir = os.path.dirname(self.image_path)
+        else:
+            initial_dir = os.getcwd()
+        
+        directory = filedialog.askdirectory(
+            title="Select Directory to Batch Process",
+            initialdir=initial_dir
+        )
+        
+        if not directory:
+            return
+        
+        # Find all image files
+        image_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.gif')
+        image_files = []
+        
+        for file in os.listdir(directory):
+            if file.lower().endswith(image_extensions):
+                image_path = os.path.join(directory, file)
+                json_path = os.path.splitext(image_path)[0] + '.json'
+                
+                # Only add if JSON doesn't exist
+                if not os.path.exists(json_path):
+                    image_files.append(image_path)
+        
+        if not image_files:
+            messagebox.showinfo("Batch Process",
+                              f"No images found to process in:\n{directory}\n\n"
+                              f"All images either have existing JSON files or no images were found.")
+            return
+        
+        # Confirm with user
+        result = messagebox.askyesno(
+            "Batch Process Confirmation",
+            f"Found {len(image_files)} images without JSON annotations.\n\n"
+            f"Directory: {directory}\n\n"
+            f"This will send each image to the API endpoint:\n{self.api_url}\n\n"
+            f"Continue?"
+        )
+        
+        if not result:
+            return
+        
+        # Create progress dialog
+        progress_dialog = tk.Toplevel(self.root)
+        progress_dialog.title("Batch Processing")
+        progress_dialog.geometry("600x300")
+        progress_dialog.transient(self.root)
+        progress_dialog.grab_set()
+        
+        # Center the dialog
+        progress_dialog.update_idletasks()
+        x = (progress_dialog.winfo_screenwidth() // 2) - (progress_dialog.winfo_width() // 2)
+        y = (progress_dialog.winfo_screenheight() // 2) - (progress_dialog.winfo_height() // 2)
+        progress_dialog.geometry(f"+{x}+{y}")
+        
+        # Progress dialog contents
+        main_frame = tk.Frame(progress_dialog, padx=20, pady=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        tk.Label(main_frame, text="Batch Processing Images", 
+                font=('Arial', 12, 'bold')).pack(pady=(0, 10))
+        
+        progress_label = tk.Label(main_frame, text="Starting...", font=('Arial', 10))
+        progress_label.pack(pady=(0, 10))
+        
+        # Progress bar
+        from tkinter import ttk as tkttk
+        progress_bar = tkttk.Progressbar(main_frame, length=500, mode='determinate')
+        progress_bar.pack(pady=(0, 10))
+        
+        # Log text area
+        log_frame = tk.Frame(main_frame)
+        log_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+        
+        log_scrollbar = tk.Scrollbar(log_frame)
+        log_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        log_text = tk.Text(log_frame, height=10, yscrollcommand=log_scrollbar.set,
+                          font=('Courier', 9))
+        log_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        log_scrollbar.config(command=log_text.yview)
+        
+        # Cancel button
+        cancel_button = tk.Button(main_frame, text="Close", command=progress_dialog.destroy,
+                                 state=tk.DISABLED)
+        cancel_button.pack()
+        
+        # Process images
+        def process_images():
+            try:
+                import requests
+                
+                total = len(image_files)
+                processed = 0
+                successful = 0
+                failed = 0
+                
+                progress_bar['maximum'] = total
+                
+                for i, image_path in enumerate(image_files):
+                    filename = os.path.basename(image_path)
+                    progress_label.config(text=f"Processing {i+1}/{total}: {filename}")
+                    progress_bar['value'] = i
+                    progress_dialog.update()
+                    
+                    log_text.insert(tk.END, f"\n[{i+1}/{total}] Processing: {filename}\n")
+                    log_text.see(tk.END)
+                    progress_dialog.update()
+                    
+                    try:
+                        # TODO: Implement actual API call for detection
+                        # This is a placeholder - replace with your actual endpoint call
+                        
+                        # Example structure for future implementation:
+                        # detect_url = f"{self.api_url}/detect"
+                        # 
+                        # with open(image_path, 'rb') as f:
+                        #     files = {'image': f}
+                        #     data = {'classes': ','.join(OBJECT_CLASSES)}
+                        #     response = requests.post(detect_url, files=files, data=data, timeout=30)
+                        # 
+                        # if response.status_code == 200:
+                        #     detections = response.json()
+                        #     
+                        #     # Save JSON annotation
+                        #     json_path = os.path.splitext(image_path)[0] + '.json'
+                        #     output = {
+                        #         "image": filename,
+                        #         "objects": detections.get('objects', [])
+                        #     }
+                        #     
+                        #     with open(json_path, 'w') as f:
+                        #         json.dump(output, f, indent=2)
+                        #     
+                        #     successful += 1
+                        #     log_text.insert(tk.END, f"  ✓ Success: Saved {len(detections.get('objects', []))} objects\n", 'success')
+                        # else:
+                        #     failed += 1
+                        #     log_text.insert(tk.END, f"  ✗ Failed: API returned status {response.status_code}\n", 'error')
+                        
+                        # Placeholder message for now
+                        log_text.insert(tk.END, 
+                                      f"  ⚠ Skipped: API endpoint not yet implemented\n",
+                                      'warning')
+                        log_text.insert(tk.END, 
+                                      f"  → Would call: {self.api_url}/detect\n",
+                                      'info')
+                        
+                    except requests.exceptions.Timeout:
+                        failed += 1
+                        log_text.insert(tk.END, f"  ✗ Timeout: Request timed out\n", 'error')
+                    except requests.exceptions.ConnectionError:
+                        failed += 1
+                        log_text.insert(tk.END, f"  ✗ Connection Error: Could not reach API\n", 'error')
+                    except Exception as e:
+                        failed += 1
+                        log_text.insert(tk.END, f"  ✗ Error: {str(e)}\n", 'error')
+                    
+                    processed += 1
+                    log_text.see(tk.END)
+                    progress_dialog.update()
+                
+                # Complete
+                progress_bar['value'] = total
+                progress_label.config(text=f"Complete: {processed} processed, {successful} successful, {failed} failed")
+                log_text.insert(tk.END, f"\n{'='*60}\n")
+                log_text.insert(tk.END, f"Batch processing complete!\n", 'success')
+                log_text.insert(tk.END, f"Total: {processed} | Success: {successful} | Failed: {failed}\n")
+                log_text.see(tk.END)
+                
+                cancel_button.config(state=tk.NORMAL)
+                self.update_status(f"Batch processing complete: {successful}/{processed} successful")
+                
+            except ImportError:
+                log_text.insert(tk.END, "\n✗ Error: 'requests' library not installed\n", 'error')
+                log_text.insert(tk.END, "Install with: pip install requests\n")
+                cancel_button.config(state=tk.NORMAL)
+                self.update_status("Error: requests library not found")
+        
+        # Configure text tags for colored output
+        log_text.tag_config('success', foreground='green')
+        log_text.tag_config('error', foreground='red')
+        log_text.tag_config('warning', foreground='orange')
+        log_text.tag_config('info', foreground='blue')
+        
+        # Start processing after dialog is shown
+        progress_dialog.after(100, process_images)
 
 
 def main():
