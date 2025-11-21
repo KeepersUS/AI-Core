@@ -177,6 +177,10 @@ class AnnotationTool:
         view_menu.add_separator()
         view_menu.add_command(label="Resize Image to 640x480", command=self.resize_image_640x480)
         
+        test_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Evaluate", menu=test_menu)
+        test_menu.add_command(label="Test Photo with Ground Truth", command=self.test_photo_with_ground_truth)
+        
         # Main container
         main_frame = tk.Frame(self.root)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -1343,6 +1347,220 @@ class AnnotationTool:
         except Exception as e:
             messagebox.showerror("Error", f"API detection failed:\n{str(e)}")
             self.update_status(f"API detection error: {str(e)}")
+    
+    def test_photo_with_ground_truth(self):
+        """Test current photo against its saved ground truth JSON using /run endpoint"""
+        if not self.image_path:
+            messagebox.showwarning("No Image", "Please load an image first")
+            return
+        
+        # Check if JSON file exists
+        base_name = os.path.splitext(self.image_path)[0]
+        json_path = f"{base_name}.json"
+        
+        if not os.path.exists(json_path):
+            result = messagebox.askyesno(
+                "No Ground Truth Found",
+                f"No ground truth JSON found at:\n{json_path}\n\n"
+                f"Would you like to save current annotations first?"
+            )
+            if result:
+                self.save_annotations()
+                # Check again if JSON was created
+                if not os.path.exists(json_path):
+                    return
+            else:
+                return
+        
+        self.update_status("Running model evaluation... Please wait...")
+        self.root.update()
+        
+        try:
+            import requests
+            
+            run_url = f"{self.api_url}/run"
+            
+            # Prepare form data
+            data = {
+                'use_gpu': 'true',
+                'create_overlay': 'true'
+            }
+            
+            # Send image and reference JSON to API
+            with open(self.image_path, 'rb') as img_file, open(json_path, 'rb') as json_file:
+                files = {
+                    'image': (os.path.basename(self.image_path), img_file, 'image/jpeg'),
+                    'reference_json': (os.path.basename(json_path), json_file, 'application/json')
+                }
+                response = requests.post(run_url, files=files, data=data, timeout=120)
+            
+            if response.status_code == 200:
+                result = response.json()
+                
+                # Extract metrics
+                exec_time = result.get('execution_time_seconds', 0)
+                comparison = result.get('comparison_results', {})
+                
+                mean_ap = comparison.get('mean_average_precision', 0)
+                mean_f1 = comparison.get('mean_f1_score', 0)
+                mean_acc = comparison.get('mean_accuracy', 0)
+                
+                confusion_pairs = comparison.get('confusion_pairs', [])
+                labels_used = comparison.get('confusion_labels_used', [])
+                
+                # Display results in a popup window
+                self.show_evaluation_results(exec_time, mean_ap, mean_f1, mean_acc, 
+                                            confusion_pairs, labels_used)
+                
+                self.update_status(f"Evaluation complete: mAP={mean_ap:.2%}, F1={mean_f1:.2%}")
+                
+            else:
+                error_detail = response.json() if response.headers.get('content-type') == 'application/json' else response.text
+                messagebox.showerror("API Error",
+                                   f"API returned status {response.status_code}\n\n"
+                                   f"Details: {error_detail}")
+                self.update_status(f"Evaluation failed: Status {response.status_code}")
+            
+        except ImportError:
+            messagebox.showerror("Missing Dependency",
+                               "The 'requests' library is not installed.\n\n"
+                               "Install it with: pip install requests")
+            self.update_status("Error: requests library not found")
+        except requests.exceptions.Timeout:
+            messagebox.showerror("Connection Timeout",
+                               f"Request to API timed out.\n\n"
+                               f"Endpoint: {self.api_url}/run\n\n"
+                               f"The evaluation may take longer than expected.")
+            self.update_status("API evaluation timeout")
+        except requests.exceptions.ConnectionError:
+            messagebox.showerror("Connection Error",
+                               f"Could not connect to API.\n\n"
+                               f"Endpoint: {self.api_url}/run\n\n"
+                               f"Please check:\n"
+                               f"• The API is running\n"
+                               f"• The URL is correct\n"
+                               f"• Network connectivity")
+            self.update_status("API connection failed")
+        except Exception as e:
+            messagebox.showerror("Error", f"Evaluation failed:\n{str(e)}")
+            self.update_status(f"API evaluation error: {str(e)}")
+    
+    def show_evaluation_results(self, exec_time, mean_ap, mean_f1, mean_acc, confusion_pairs, labels_used):
+        """Display evaluation results in a popup window"""
+        # Create results dialog
+        results_dialog = tk.Toplevel(self.root)
+        results_dialog.title("Model Evaluation Results")
+        results_dialog.geometry("700x600")
+        results_dialog.transient(self.root)
+        
+        # Center the dialog
+        results_dialog.update_idletasks()
+        x = (results_dialog.winfo_screenwidth() // 2) - (results_dialog.winfo_width() // 2)
+        y = (results_dialog.winfo_screenheight() // 2) - (results_dialog.winfo_height() // 2)
+        results_dialog.geometry(f"+{x}+{y}")
+        
+        # Main frame
+        main_frame = tk.Frame(results_dialog, padx=20, pady=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Title
+        tk.Label(main_frame, text="Model Evaluation Results", 
+                font=('Arial', 14, 'bold')).pack(pady=(0, 10))
+        
+        # Image info
+        filename = os.path.basename(self.image_path)
+        tk.Label(main_frame, text=f"Image: {filename}", 
+                font=('Arial', 10)).pack(pady=(0, 5))
+        tk.Label(main_frame, text=f"Execution Time: {exec_time:.2f}s", 
+                font=('Arial', 10)).pack(pady=(0, 15))
+        
+        # Overall Metrics Frame
+        metrics_frame = tk.LabelFrame(main_frame, text="Overall Metrics", 
+                                     font=('Arial', 11, 'bold'), padx=15, pady=10)
+        metrics_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        # Create metrics with color coding
+        metrics_data = [
+            ("Mean Average Precision (mAP):", mean_ap),
+            ("Mean F1 Score:", mean_f1),
+            ("Mean Accuracy:", mean_acc)
+        ]
+        
+        for label_text, value in metrics_data:
+            metric_row = tk.Frame(metrics_frame)
+            metric_row.pack(fill=tk.X, pady=3)
+            
+            tk.Label(metric_row, text=label_text, font=('Arial', 10), 
+                    anchor=tk.W).pack(side=tk.LEFT)
+            
+            # Color code based on performance
+            if value >= 0.8:
+                color = 'green'
+            elif value >= 0.6:
+                color = 'orange'
+            else:
+                color = 'red'
+            
+            tk.Label(metric_row, text=f"{value:.2%}", font=('Arial', 10, 'bold'), 
+                    fg=color, anchor=tk.E).pack(side=tk.RIGHT)
+        
+        # Confusion Matrix Frame
+        confusion_frame = tk.LabelFrame(main_frame, text="Confusion Matrix Details", 
+                                       font=('Arial', 11, 'bold'), padx=15, pady=10)
+        confusion_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 15))
+        
+        # Scrollable text area for confusion pairs
+        scroll_frame = tk.Frame(confusion_frame)
+        scroll_frame.pack(fill=tk.BOTH, expand=True)
+        
+        scrollbar = tk.Scrollbar(scroll_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        confusion_text = tk.Text(scroll_frame, height=15, yscrollcommand=scrollbar.set,
+                                font=('Courier', 9), wrap=tk.WORD)
+        confusion_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=confusion_text.yview)
+        
+        # Add confusion pairs
+        if confusion_pairs:
+            confusion_text.insert(tk.END, "True Class → Predicted Class (Count)\n")
+            confusion_text.insert(tk.END, "="*60 + "\n\n")
+            
+            # Separate true positives from misclassifications
+            true_positives = [p for p in confusion_pairs if p['true'] == p['pred']]
+            misclassifications = [p for p in confusion_pairs if p['true'] != p['pred']]
+            
+            if true_positives:
+                confusion_text.insert(tk.END, "✓ Correct Predictions:\n", 'success')
+                for pair in true_positives:
+                    confusion_text.insert(tk.END, 
+                                        f"  {pair['true']:20s} → {pair['pred']:20s} ({pair['count']:3d})\n",
+                                        'success')
+                confusion_text.insert(tk.END, "\n")
+            
+            if misclassifications:
+                confusion_text.insert(tk.END, "✗ Misclassifications:\n", 'error')
+                for pair in misclassifications:
+                    confusion_text.insert(tk.END, 
+                                        f"  {pair['true']:20s} → {pair['pred']:20s} ({pair['count']:3d})\n",
+                                        'error')
+            
+            if labels_used:
+                confusion_text.insert(tk.END, f"\n\nClasses Detected: {len(labels_used)}\n", 'info')
+                confusion_text.insert(tk.END, ", ".join(labels_used), 'info')
+        else:
+            confusion_text.insert(tk.END, "No confusion matrix data available.")
+        
+        # Configure text tags for colors
+        confusion_text.tag_config('success', foreground='green')
+        confusion_text.tag_config('error', foreground='red')
+        confusion_text.tag_config('info', foreground='blue')
+        
+        confusion_text.config(state=tk.DISABLED)
+        
+        # Close button
+        tk.Button(main_frame, text="Close", command=results_dialog.destroy,
+                 width=15, font=('Arial', 10)).pack(pady=(10, 0))
     
     def batch_process_directory(self):
         """Batch process all images in a directory using API endpoint"""
