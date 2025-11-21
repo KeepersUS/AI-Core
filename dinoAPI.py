@@ -308,6 +308,18 @@ def _run_grounding_dino(image_path: str, reference_objects: List[Dict[str, Any]]
     return result
 
 
+@app.get("/health")
+async def health_check():
+    """
+    Health check endpoint to verify the API is running.
+    """
+    return JSONResponse(content={
+        "status": "healthy",
+        "timestamp": time.time(),
+        "model_loaded": _detector_instance is not None
+    })
+
+
 @app.post("/warmup")
 async def warmup_model(use_gpu: bool = Form(True)):
     """
@@ -370,6 +382,215 @@ async def warmup_model(use_gpu: bool = Form(True)):
         "load_time_seconds": elapsed,
         "device": str(_detector_instance.device) if hasattr(_detector_instance, 'device') else "unknown"
     })
+
+
+@app.post("/detect")
+async def detect_objects(
+    image: UploadFile = File(..., description="Image file to analyze"),
+    classes: Optional[str] = Form(None, description="Comma-separated list of classes to detect (optional)"),
+    use_gpu: bool = Form(True),
+    box_threshold: Optional[float] = Form(None, description="Box confidence threshold (optional)"),
+    text_threshold: Optional[float] = Form(None, description="Text confidence threshold (optional)"),
+    confidence_threshold: Optional[float] = Form(None, description="Minimum confidence for final detections (optional)"),
+):
+    """
+    Detect objects in a single image and return bounding boxes.
+    This endpoint does not require reference JSON and is designed for annotation workflows.
+    """
+    global _detector_instance
+    started = time.time()
+    image_path = None
+    
+    try:
+        if not LOCAL_IMPORT_OK:
+            raise HTTPException(
+                status_code=500, 
+                detail={
+                    "error": "Failed to import local modules",
+                    "message": LOCAL_IMPORT_ERROR_MSG,
+                    "traceback": None
+                }
+            )
+        
+        # Use global detector instance if available, otherwise create one
+        if _detector_instance is not None:
+            detector = _detector_instance
+        else:
+            try:
+                device = "auto" if use_gpu else "cpu"
+                detector = GroundingDINODetector(device=device)
+            except Exception as e:
+                tb = traceback.format_exc()
+                raise HTTPException(
+                    status_code=500, 
+                    detail={
+                        "error": "Failed to create GroundingDINODetector",
+                        "message": str(e),
+                        "traceback": tb,
+                        "device": "auto" if use_gpu else "cpu"
+                    }
+                )
+
+            if detector.model is None:
+                raise HTTPException(
+                    status_code=500, 
+                    detail={
+                        "error": "Grounding DINO model not loaded",
+                        "message": "Check weights/config paths",
+                        "detector_device": str(detector.device) if hasattr(detector, 'device') else None
+                    }
+                )
+        
+        # Import external GroundingDINO utilities
+        try:
+            from groundingdino.util.inference import load_image, predict
+        except Exception as e:
+            tb = traceback.format_exc()
+            raise HTTPException(
+                status_code=500, 
+                detail={
+                    "error": "Missing GroundingDINO runtime dependency",
+                    "message": str(e),
+                    "traceback": tb
+                }
+            )
+        
+        # Save uploaded image
+        uploads_dir = os.path.join("uploads")
+        try:
+            image_path = _read_upload_to_disk(image, uploads_dir)
+        except Exception as e:
+            tb = traceback.format_exc()
+            raise HTTPException(
+                status_code=500, 
+                detail={
+                    "error": "Failed to save uploaded image",
+                    "message": str(e),
+                    "traceback": tb,
+                    "filename": getattr(image, 'filename', None)
+                }
+            )
+        
+        # Load image
+        try:
+            image_source, image_tensor = load_image(image_path)
+            h, w, _ = image_source.shape
+        except Exception as e:
+            tb = traceback.format_exc()
+            raise HTTPException(
+                status_code=500, 
+                detail={
+                    "error": "Failed to load image",
+                    "message": str(e),
+                    "traceback": tb,
+                    "image_path": image_path
+                }
+            )
+        
+        # Determine which classes to detect
+        if classes:
+            # Use provided classes (comma-separated)
+            class_list = [c.strip().lower() for c in classes.split(",") if c.strip()]
+        else:
+            # Use default INDOOR_BUSINESS_CLASSES
+            class_list = INDOOR_BUSINESS_CLASSES
+        
+        text_query = ". ".join(class_list) + "."
+        
+        # Override thresholds if provided
+        box_thresh = box_threshold if box_threshold is not None else detector.box_threshold
+        txt_thresh = text_threshold if text_threshold is not None else detector.text_threshold
+        conf_thresh = confidence_threshold if confidence_threshold is not None else detector.confidence_threshold
+        
+        # Run detection
+        try:
+            boxes, confidences, labels = predict(
+                model=detector.model,
+                image=image_tensor,
+                caption=text_query,
+                box_threshold=box_thresh,
+                text_threshold=txt_thresh,
+                device=("cpu" if not use_gpu or str(detector.device) == "cpu" else "cuda"),
+            )
+        except Exception as e:
+            tb = traceback.format_exc()
+            raise HTTPException(
+                status_code=500, 
+                detail={
+                    "error": "Prediction failed",
+                    "message": str(e),
+                    "traceback": tb,
+                    "text_query": text_query,
+                    "box_threshold": box_thresh,
+                    "text_threshold": txt_thresh,
+                    "device": ("cpu" if not use_gpu or str(detector.device) == "cpu" else "cuda")
+                }
+            )
+        
+        # Convert detections to annotation format
+        detections = []
+        for box, confidence, label in zip(boxes, confidences, labels):
+            if confidence < conf_thresh:
+                continue
+
+            cx_norm, cy_norm, w_norm, h_norm = box
+            cx = cx_norm * w
+            cy = cy_norm * h
+            box_w = w_norm * w
+            box_h = h_norm * h
+
+            x1 = int(cx - box_w / 2)
+            y1 = int(cy - box_h / 2)
+            x2 = int(cx + box_w / 2)
+            y2 = int(cy + box_h / 2)
+
+            # Clamp to bounds
+            x1 = max(0, x1)
+            y1 = max(0, y1)
+            x2 = min(w, x2)
+            y2 = min(h, y2)
+
+            if x2 <= x1 or y2 <= y1:
+                continue
+
+            class_name = label.strip().lower()
+            
+            # Only include if in requested class list
+            if class_name in class_list:
+                detections.append({
+                    "class": class_name,
+                    "bbox": [x1, y1, x2, y2],
+                    "confidence": float(confidence),
+                })
+        
+        elapsed = time.time() - started
+        
+        response = {
+            "status": "ok",
+            "image": os.path.basename(image_path),
+            "objects": detections,
+            "execution_time_seconds": elapsed,
+            "image_dimensions": {"width": w, "height": h},
+            "num_detections": len(detections)
+        }
+        
+        return JSONResponse(content=response)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        tb = traceback.format_exc()
+        elapsed = time.time() - started
+        raise HTTPException(
+            status_code=500, 
+            detail={
+                "error": "Unexpected error during detection",
+                "message": str(e),
+                "traceback": tb,
+                "execution_time_seconds": elapsed,
+                "image_path": image_path
+            }
+        )
 
 
 @app.post("/run")
