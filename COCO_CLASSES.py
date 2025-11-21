@@ -1,43 +1,119 @@
 INDOOR_BUSINESS_CLASSES = [
-    "person",           # People in the space
-    "backpack",        # Luggage/personal items
-    "handbag",         # Personal bags
-    "tie",             # Professional attire
-    "suitcase",        # Travel luggage (Airbnb guests)
-    "bottle",          # Water bottles, beverages
-    "wine glass",      # Dining/entertainment
-    "cup",             # Coffee cups, mugs
-    "fork",            # Dining utensils
-    "knife",           # Kitchen utensils
-    "spoon",           # Dining utensils
-    "bowl",            # Dishes
-    "banana",          # Food items
-    "apple",           # Food items
-    "sandwich",        # Food items
-    "chair",           # Office/dining furniture
-    "couch",           # Lounge furniture
-    "potted plant",    # Decor/ambiance
-    "bed",             # Bedroom furniture
-    "dining table",    # Dining/meeting furniture
-    "toilet",          # Bathroom fixtures
-    "tv",              # Entertainment/presentation
-    "laptop",          # Work equipment
-    "mouse",           # Computer peripherals
-    "remote",          # TV/AC controls
-    "keyboard",        # Computer equipment
-    "cell phone",      # Personal devices
-    "microwave",       # Kitchen appliances
-    "oven",            # Kitchen appliances
-    "toaster",         # Kitchen appliances
-    "sink",            # Kitchen/bathroom fixtures
-    "refrigerator",    # Kitchen appliances
-    "book",            # Reading materials/decor
-    "clock",           # Time displays
-    "vase",            # Decorative items
-    "scissors",        # Office supplies
-    "teddy bear",      # Comfort items (hotels)
-    "hair drier",      # Bathroom amenities
-    "toothbrush"       # Personal hygiene items
+    
+    "bed",
+    "pillow",
+    "comforter",
+    "towel",
+    "washcloth",
+    "nightstand",
+    "dresser",
+    "sofa sleeper",
+    "air mattress",
+    "trundle bed",
+    "messy bed",
+    "made bed",
+    "sheet",
+    "lamp",
+    "alarm clock",
+    "clothes hanger",
+    "mirror",
+    "laundry hamper",
+    "couch",
+    "sofa",
+    "armchair",
+    "coffee table",
+    "side table",
+    "rug",
+    "television",
+    "tv remote",
+    "book",
+    "magazine",
+    "wall art",
+    "curtain",
+    "blinds",
+    "decor item",
+    "wi-fi router",
+    "coaster",
+    "dining table",
+    "dining chair",
+    "centerpiece",
+    "kitchen sink",
+    "oven",
+    "microwave",
+    "refrigerator",
+    "freezer",
+    "dishwasher",
+    "stove",
+    "toaster",
+    "coffee maker",
+    "electric kettle",
+    "blender",
+    "coffee container",
+    "sugar container",
+    "paper towel roll",
+    "paper towel",
+    "dish soap",
+    "sponge",
+    "trash bag",
+    "aluminum foil",
+    "plastic wrap",
+    "toilet",
+    "toilet seat",
+    "toilet lid",
+    "toilet paper roll",
+    "toilet paper",
+    "hand towel",
+    "bath mat",
+    "shower curtain",
+    "shower liner",
+    "hand soap",
+    "shampoo",
+    "conditioner",
+    "hair dryer",
+    "plunger",
+    "toilet brush",
+    "tissue box",
+    "trash can",
+    "first aid kit",
+    "entry rug",
+    "welcome mat",
+    "washer",
+    "dryer",
+    "lint trap",
+    "laundry bag",
+    "piles of linens",
+    "laundry detergent",
+    "dryer sheets",
+    "ironing board",
+    "drying rack",
+    "folded linens",
+    "laundry",
+    "paper towels",
+    "coffee supplies",
+    "linens",
+    "blanket",
+    "storage bin",
+    "cleaning spray",
+    "disinfectant wipe",
+    "table",
+    "chair",
+    "lounger",
+    "grill",
+    "umbrella",
+    "garden hose",
+    "decor",
+    "vase",
+    "bowl",
+    "decorative pillow",
+    "broom",
+    "dustpan",
+    "stain",
+    "chipping damage",
+    "ripping damage",
+    "cracked damage",
+    "grime",
+    "fresh trashcan",
+    "used trashcan",
 ]
 
 CONFIDENCE_THRESHOLD = 0.5
