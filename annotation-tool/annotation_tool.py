@@ -116,8 +116,8 @@ class AnnotationTool:
         self.canvas_height = 800
         
         # API Configuration
-        self.api_url = "http://localhost:5000"  # Default API URL
-        self.use_api = False  # Toggle between local model and API
+        self.api_url = "https://ai-core-787266927042.us-central1.run.app"  # Default API URL
+        self.use_api = True  # Toggle between local model and API
         
         # Colors
         self.bbox_color = "#00FF00"  # Green for unselected
