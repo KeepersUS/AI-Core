@@ -115,6 +115,16 @@ class AnnotationTool:
         self.canvas_width = 1000
         self.canvas_height = 800
         
+        # Zoom and pan variables
+        self.zoom_level = 1.0
+        self.min_zoom = 0.1
+        self.max_zoom = 5.0
+        self.panning = False
+        self.pan_start_x = 0
+        self.pan_start_y = 0
+        self.canvas_offset_x = 0
+        self.canvas_offset_y = 0
+        
         # API Configuration
         self.api_url = "https://ai-core-787266927042.us-central1.run.app"  # Default API URL
         self.use_api = True  # Toggle between local model and API
@@ -159,6 +169,14 @@ class AnnotationTool:
         settings_menu.add_command(label="Configure API Endpoint", command=self.configure_api)
         settings_menu.add_command(label="Test API Connection", command=self.test_api_health)
         
+        view_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="View", menu=view_menu)
+        view_menu.add_command(label="Zoom In", command=self.zoom_in)
+        view_menu.add_command(label="Zoom Out", command=self.zoom_out)
+        view_menu.add_command(label="Reset Zoom", command=self.reset_zoom)
+        view_menu.add_separator()
+        view_menu.add_command(label="Resize Image to 640x480", command=self.resize_image_640x480)
+        
         # Main container
         main_frame = tk.Frame(self.root)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -193,6 +211,14 @@ class AnnotationTool:
         self.canvas.bind('<ButtonRelease-1>', self.on_mouse_up)
         self.canvas.bind('<Motion>', self.on_mouse_move)
         
+        # Right-click for panning
+        self.canvas.bind('<ButtonPress-3>', self.on_pan_start)
+        self.canvas.bind('<B3-Motion>', self.on_pan_drag)
+        self.canvas.bind('<ButtonRelease-3>', self.on_pan_end)
+        
+        # Mouse wheel for zoom
+        self.canvas.bind('<MouseWheel>', self.on_mousewheel_zoom)
+        
         # Bottom toolbar
         toolbar_frame = tk.Frame(left_frame)
         toolbar_frame.pack(fill=tk.X, pady=5)
@@ -210,6 +236,26 @@ class AnnotationTool:
         
         self.status_label = tk.Label(toolbar_frame, text="No image loaded", relief=tk.SUNKEN)
         self.status_label.pack(side=tk.RIGHT, fill=tk.X, expand=True, padx=5)
+        
+        # Zoom control
+        zoom_frame = tk.Frame(left_frame)
+        zoom_frame.pack(fill=tk.X, pady=5)
+        
+        tk.Label(zoom_frame, text="Zoom:").pack(side=tk.LEFT, padx=5)
+        
+        self.zoom_var = tk.DoubleVar(value=100.0)
+        self.zoom_slider = tk.Scale(zoom_frame, from_=10, to=500, orient=tk.HORIZONTAL,
+                                    variable=self.zoom_var, command=self.on_zoom_slider_change,
+                                    showvalue=False, length=200)
+        self.zoom_slider.pack(side=tk.LEFT, padx=5)
+        
+        self.zoom_label = tk.Label(zoom_frame, text="100%", width=6)
+        self.zoom_label.pack(side=tk.LEFT, padx=5)
+        
+        tk.Button(zoom_frame, text="Reset", command=self.reset_zoom, width=6).pack(side=tk.LEFT, padx=2)
+        
+        tk.Label(zoom_frame, text="(Right-click + drag to pan)", font=('Arial', 8), 
+                fg='gray').pack(side=tk.LEFT, padx=10)
         
         # Right panel - Controls
         right_frame = tk.Frame(main_frame, width=350)
@@ -245,7 +291,7 @@ class AnnotationTool:
         scrollbar = tk.Scrollbar(list_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        self.bbox_listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, height=15)
+        self.bbox_listbox = tk.Listbox(list_frame, yscrollcommand=scrollbar.set, height=8)
         self.bbox_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.config(command=self.bbox_listbox.yview)
         
@@ -319,6 +365,11 @@ class AnnotationTool:
             self.bboxes = []
             self.current_bbox = None
             
+            # Reset zoom
+            self.zoom_level = 1.0
+            self.zoom_var.set(100.0)
+            self.zoom_label.config(text="100%")
+            
             # Calculate scale factor to fit canvas
             img_width, img_height = self.original_image.size
             scale_x = self.canvas_width / img_width
@@ -330,8 +381,10 @@ class AnnotationTool:
             display_height = int(img_height * self.scale_factor)
             self.display_image = self.original_image.resize((display_width, display_height), Image.LANCZOS)
             
-            # Update canvas
-            self.canvas.config(scrollregion=(0, 0, display_width, display_height))
+            # Update canvas with zoom
+            zoomed_width = int(display_width * self.zoom_level)
+            zoomed_height = int(display_height * self.zoom_level)
+            self.canvas.config(scrollregion=(0, 0, zoomed_width, zoomed_height))
             self.redraw_canvas()
             
             # Update UI
@@ -389,6 +442,166 @@ class AnnotationTool:
                 
             except Exception as e:
                 print(f"Failed to load existing annotations: {e}")
+    
+    def zoom_in(self):
+        """Zoom in on the image"""
+        if self.display_image:
+            new_zoom = min(self.zoom_level * 1.2, self.max_zoom)
+            self.set_zoom(new_zoom)
+    
+    def zoom_out(self):
+        """Zoom out on the image"""
+        if self.display_image:
+            new_zoom = max(self.zoom_level / 1.2, self.min_zoom)
+            self.set_zoom(new_zoom)
+    
+    def reset_zoom(self):
+        """Reset zoom to 100%"""
+        if self.display_image:
+            self.set_zoom(1.0)
+    
+    def set_zoom(self, zoom_level: float):
+        """Set zoom level and update display"""
+        if not self.display_image:
+            return
+        
+        self.zoom_level = max(self.min_zoom, min(self.max_zoom, zoom_level))
+        self.zoom_var.set(self.zoom_level * 100)
+        self.zoom_label.config(text=f"{int(self.zoom_level * 100)}%")
+        
+        # Update canvas scrollregion
+        img_width, img_height = self.display_image.size
+        zoomed_width = int(img_width * self.zoom_level)
+        zoomed_height = int(img_height * self.zoom_level)
+        self.canvas.config(scrollregion=(0, 0, zoomed_width, zoomed_height))
+        
+        self.redraw_canvas()
+    
+    def on_zoom_slider_change(self, value):
+        """Handle zoom slider change"""
+        zoom_percent = float(value)
+        self.set_zoom(zoom_percent / 100.0)
+    
+    def on_mousewheel_zoom(self, event):
+        """Handle mouse wheel zoom"""
+        if not self.display_image:
+            return
+        
+        # Get mouse position relative to canvas
+        x = self.canvas.canvasx(event.x)
+        y = self.canvas.canvasy(event.y)
+        
+        # Zoom in or out
+        if event.delta > 0:
+            self.zoom_in()
+        else:
+            self.zoom_out()
+    
+    def on_pan_start(self, event):
+        """Start panning with right-click"""
+        self.panning = True
+        self.pan_start_x = event.x
+        self.pan_start_y = event.y
+        self.canvas.config(cursor='fleur')
+    
+    def on_pan_drag(self, event):
+        """Handle panning drag"""
+        if self.panning:
+            dx = event.x - self.pan_start_x
+            dy = event.y - self.pan_start_y
+            
+            # Scroll the canvas
+            self.canvas.xview_scroll(int(-dx / 10), 'units')
+            self.canvas.yview_scroll(int(-dy / 10), 'units')
+            
+            self.pan_start_x = event.x
+            self.pan_start_y = event.y
+    
+    def on_pan_end(self, event):
+        """End panning"""
+        self.panning = False
+        self.canvas.config(cursor='cross')
+    
+    def resize_image_640x480(self):
+        """Resize the original image to 640x480"""
+        if not self.original_image:
+            messagebox.showwarning("No Image", "Please load an image first")
+            return
+        
+        result = messagebox.askyesno(
+            "Resize Image",
+            "This will permanently resize the image to 640x480.\n\n"
+            "Bounding boxes will be scaled accordingly.\n\n"
+            "Continue?"
+        )
+        
+        if not result:
+            return
+        
+        try:
+            # Store old dimensions
+            old_width, old_height = self.original_image.size
+            new_width, new_height = 640, 480
+            
+            # Calculate scaling factors for bounding boxes
+            width_scale = new_width / old_width
+            height_scale = new_height / old_height
+            
+            # Resize the original image
+            self.original_image = self.original_image.resize((new_width, new_height), Image.LANCZOS)
+            
+            # Save the resized image
+            if self.image_path:
+                self.original_image.save(self.image_path)
+            
+            # Scale all bounding boxes
+            for bbox in self.bboxes:
+                # Convert to original coordinates
+                orig_x1 = bbox.x1 / self.scale_factor
+                orig_y1 = bbox.y1 / self.scale_factor
+                orig_x2 = bbox.x2 / self.scale_factor
+                orig_y2 = bbox.y2 / self.scale_factor
+                
+                # Apply resize scaling
+                new_x1 = orig_x1 * width_scale
+                new_y1 = orig_y1 * height_scale
+                new_x2 = orig_x2 * width_scale
+                new_y2 = orig_y2 * height_scale
+                
+                # Convert back to display coordinates (will be recalculated)
+                bbox.x1 = new_x1
+                bbox.y1 = new_y1
+                bbox.x2 = new_x2
+                bbox.y2 = new_y2
+            
+            # Reload the image display
+            self.load_image(self.image_path)
+            
+            # Restore bounding boxes with new scale
+            temp_bboxes = self.bboxes.copy()
+            self.bboxes = []
+            for bbox in temp_bboxes:
+                scaled_bbox = BoundingBox(
+                    int(bbox.x1 * self.scale_factor),
+                    int(bbox.y1 * self.scale_factor),
+                    int(bbox.x2 * self.scale_factor),
+                    int(bbox.y2 * self.scale_factor),
+                    bbox.class_name,
+                    bbox.confidence
+                )
+                self.bboxes.append(scaled_bbox)
+            
+            self.redraw_canvas()
+            self.update_bbox_list()
+            
+            self.update_status(f"Image resized to 640x480")
+            messagebox.showinfo("Success", f"Image resized to 640x480\n\n"
+                              f"Original size: {old_width}x{old_height}\n"
+                              f"New size: {new_width}x{new_height}\n"
+                              f"Bounding boxes: {len(self.bboxes)} scaled")
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to resize image:\n{str(e)}")
     
     def run_grounding_dino(self):
         """Run GroundingDINO for automatic detection"""
@@ -600,7 +813,11 @@ class AnnotationTool:
     
     def on_mouse_down(self, event):
         """Handle mouse button press"""
-        x, y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
+        canvas_x, canvas_y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
+        
+        # Convert canvas coordinates to image coordinates (accounting for zoom)
+        x = canvas_x / self.zoom_level
+        y = canvas_y / self.zoom_level
         
         # Check if clicking on existing bbox
         clicked_bbox = None
@@ -650,7 +867,11 @@ class AnnotationTool:
     
     def on_mouse_drag(self, event):
         """Handle mouse drag"""
-        x, y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
+        canvas_x, canvas_y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
+        
+        # Convert canvas coordinates to image coordinates (accounting for zoom)
+        x = canvas_x / self.zoom_level
+        y = canvas_y / self.zoom_level
         
         if self.drawing and self.current_bbox:
             # Update drawing bbox
@@ -693,7 +914,12 @@ class AnnotationTool:
         """Handle mouse button release"""
         if self.drawing and self.current_bbox:
             # Finish drawing
-            x, y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
+            canvas_x, canvas_y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
+            
+            # Convert canvas coordinates to image coordinates (accounting for zoom)
+            x = canvas_x / self.zoom_level
+            y = canvas_y / self.zoom_level
+            
             self.current_bbox.x2 = x
             self.current_bbox.y2 = y
             
@@ -722,10 +948,14 @@ class AnnotationTool:
     
     def on_mouse_move(self, event):
         """Handle mouse movement (for cursor changes)"""
-        if self.drawing or self.dragging or self.resizing:
+        if self.drawing or self.dragging or self.resizing or self.panning:
             return
         
-        x, y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
+        canvas_x, canvas_y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
+        
+        # Convert canvas coordinates to image coordinates (accounting for zoom)
+        x = canvas_x / self.zoom_level
+        y = canvas_y / self.zoom_level
         
         # Check for resize handles
         cursor = 'cross'
@@ -756,18 +986,31 @@ class AnnotationTool:
         self.canvas.delete('all')
         
         if self.display_image:
-            # Draw image
-            self.photo_image = ImageTk.PhotoImage(self.display_image)
+            # Apply zoom to image
+            if self.zoom_level != 1.0:
+                zoomed_width = int(self.display_image.width * self.zoom_level)
+                zoomed_height = int(self.display_image.height * self.zoom_level)
+                zoomed_image = self.display_image.resize((zoomed_width, zoomed_height), Image.LANCZOS)
+                self.photo_image = ImageTk.PhotoImage(zoomed_image)
+            else:
+                self.photo_image = ImageTk.PhotoImage(self.display_image)
+            
             self.canvas.create_image(0, 0, image=self.photo_image, anchor=tk.NW)
             
-            # Draw bounding boxes
+            # Draw bounding boxes (scaled by zoom)
             for bbox in self.bboxes:
                 color = self.selected_color if bbox.selected else self.bbox_color
                 width = 3 if bbox.selected else 2
                 
+                # Apply zoom to bbox coordinates
+                x1 = bbox.x1 * self.zoom_level
+                y1 = bbox.y1 * self.zoom_level
+                x2 = bbox.x2 * self.zoom_level
+                y2 = bbox.y2 * self.zoom_level
+                
                 # Draw rectangle
                 self.canvas.create_rectangle(
-                    bbox.x1, bbox.y1, bbox.x2, bbox.y2,
+                    x1, y1, x2, y2,
                     outline=color, width=width, tags='bbox'
                 )
                 
@@ -777,40 +1020,45 @@ class AnnotationTool:
                     label_text += f" ({bbox.confidence:.2f})"
                 
                 # Label background
+                label_height = int(20 * self.zoom_level)
+                label_width = int(len(label_text) * 7 * self.zoom_level)
                 self.canvas.create_rectangle(
-                    bbox.x1, bbox.y1 - 20, bbox.x1 + len(label_text) * 7, bbox.y1,
+                    x1, y1 - label_height, x1 + label_width, y1,
                     fill=color, outline=color, tags='label'
                 )
                 self.canvas.create_text(
-                    bbox.x1 + 2, bbox.y1 - 10,
+                    x1 + 2, y1 - label_height // 2,
                     text=label_text, anchor=tk.W, fill='white', tags='label'
                 )
                 
                 # Draw resize handles if selected
                 if bbox.selected:
-                    handle_size = 6
+                    handle_size = max(6, int(6 * self.zoom_level))
                     handles = [
-                        (bbox.x1, bbox.y1),  # NW
-                        (bbox.x2, bbox.y1),  # NE
-                        (bbox.x1, bbox.y2),  # SW
-                        (bbox.x2, bbox.y2),  # SE
-                        ((bbox.x1 + bbox.x2) // 2, bbox.y1),  # N
-                        ((bbox.x1 + bbox.x2) // 2, bbox.y2),  # S
-                        (bbox.x1, (bbox.y1 + bbox.y2) // 2),  # W
-                        (bbox.x2, (bbox.y1 + bbox.y2) // 2),  # E
+                        (x1, y1),  # NW
+                        (x2, y1),  # NE
+                        (x1, y2),  # SW
+                        (x2, y2),  # SE
+                        ((x1 + x2) / 2, y1),  # N
+                        ((x1 + x2) / 2, y2),  # S
+                        (x1, (y1 + y2) / 2),  # W
+                        (x2, (y1 + y2) / 2),  # E
                     ]
                     for hx, hy in handles:
                         self.canvas.create_rectangle(
-                            hx - handle_size // 2, hy - handle_size // 2,
-                            hx + handle_size // 2, hy + handle_size // 2,
+                            hx - handle_size / 2, hy - handle_size / 2,
+                            hx + handle_size / 2, hy + handle_size / 2,
                             fill='white', outline=color, width=2, tags='handle'
                         )
             
             # Draw current bbox being drawn
             if include_current and self.current_bbox and self.drawing:
+                x1 = self.current_bbox.x1 * self.zoom_level
+                y1 = self.current_bbox.y1 * self.zoom_level
+                x2 = self.current_bbox.x2 * self.zoom_level
+                y2 = self.current_bbox.y2 * self.zoom_level
                 self.canvas.create_rectangle(
-                    self.current_bbox.x1, self.current_bbox.y1,
-                    self.current_bbox.x2, self.current_bbox.y2,
+                    x1, y1, x2, y2,
                     outline=self.drawing_color, width=2, dash=(5, 5), tags='current'
                 )
         
