@@ -4,6 +4,7 @@ import time
 import traceback
 from typing import Optional, Dict, Any, List
 import subprocess
+import threading
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -604,6 +605,67 @@ async def run_model(
     image_path = None
     
     try:
+        # Lightweight sampler to capture average system utilization during execution
+        class _Sampler:
+            def __init__(self, interval_s: float = 0.5):
+                self.interval_s = interval_s
+                self._stop = threading.Event()
+                self.samples: List[Dict[str, Any]] = []
+                self.thread: Optional[threading.Thread] = None
+
+            def start(self):
+                def _loop():
+                    while not self._stop.is_set():
+                        try:
+                            self.samples.append(_collect_system_metrics())
+                        except Exception:
+                            pass
+                        self._stop.wait(self.interval_s)
+                self.thread = threading.Thread(target=_loop, daemon=True)
+                self.thread.start()
+
+            def stop_and_aggregate(self) -> Dict[str, Any]:
+                self._stop.set()
+                if self.thread:
+                    self.thread.join(timeout=2.0)
+                if not self.samples:
+                    return {}
+                # Aggregate numeric fields
+                def _avg(vals: List[Optional[float]]) -> Optional[float]:
+                    nums = [v for v in vals if isinstance(v, (int, float))]
+                    return (sum(nums) / len(nums)) if nums else None
+                cpu_avg = _avg([s.get("cpu_percent") for s in self.samples])
+                mem_pct_avg = _avg([s.get("memory", {}).get("percent") if isinstance(s.get("memory"), dict) else None for s in self.samples])
+                gpu_util_avg = None
+                gpu_mem_pct_avg = None
+                # If multiple GPUs, average first GPU across samples
+                gpu_utils: List[Optional[float]] = []
+                gpu_mems: List[Optional[float]] = []
+                for s in self.samples:
+                    g0 = None
+                    try:
+                        g0 = s.get("gpus", [])[0] if isinstance(s.get("gpus"), list) and s.get("gpus") else None
+                    except Exception:
+                        g0 = None
+                    if isinstance(g0, dict):
+                        gpu_utils.append(g0.get("utilization_gpu_percent"))
+                        gpu_mems.append(g0.get("memory_percent"))
+                    else:
+                        gpu_utils.append(None)
+                        gpu_mems.append(None)
+                gpu_util_avg = _avg(gpu_utils)
+                gpu_mem_pct_avg = _avg(gpu_mems)
+                return {
+                    "cpu_percent_avg": cpu_avg,
+                    "memory_percent_avg": mem_pct_avg,
+                    "gpu_utilization_percent_avg": gpu_util_avg,
+                    "gpu_memory_percent_avg": gpu_mem_pct_avg,
+                    "num_samples": len(self.samples),
+                    "sample_interval_seconds": self.interval_s,
+                }
+
+        sampler = _Sampler(interval_s=0.5)
+        sampler.start()
         # Persist uploads
         uploads_dir = os.path.join("uploads")
         try:
@@ -641,12 +703,14 @@ async def run_model(
         result = _run_grounding_dino(image_path, reference_objects, use_gpu=use_gpu, create_overlay=create_overlay)
         
         elapsed = time.time() - started
+        usage_avg = sampler.stop_and_aggregate()
         
         response = {
             "status": "ok",
             "execution_time_seconds": elapsed,
             "comparison_results": result.get("comparison_results"),
-            "image_path": image_path
+            "image_path": image_path,
+            "resource_usage_avg": usage_avg
         }
         
         if "warnings" in result:
