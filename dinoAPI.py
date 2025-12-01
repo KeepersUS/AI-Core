@@ -2,6 +2,7 @@ import os
 import json
 import time
 import traceback
+import logging
 from typing import Optional, Dict, Any, List
 import subprocess
 import threading
@@ -19,6 +20,12 @@ except Exception as e:
     LOCAL_IMPORT_OK = False
     LOCAL_IMPORT_ERROR_MSG = str(e)
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Grounding DINO API",
               version="1.0.0",
@@ -35,6 +42,9 @@ app.add_middleware(
 
 # Global detector instance (initialized by warmup endpoint)
 _detector_instance: Optional[Any] = None
+
+# Counter for logging nvidia-smi stats
+_request_counter: int = 0
 
 
 def _read_upload_to_disk(upload: UploadFile, directory: str, target_filename: Optional[str] = None) -> str:
@@ -400,7 +410,13 @@ async def detect_objects(
     Detect objects in a single image and return bounding boxes.
     This endpoint does not require reference JSON and is designed for annotation workflows.
     """
-    global _detector_instance
+    global _detector_instance, _request_counter
+    
+    # Increment request counter and log nvidia-smi stats every 6 requests
+    _request_counter += 1
+    if _request_counter % 6 == 0:
+        _log_nvidia_smi_stats()
+    
     started = time.time()
     image_path = None
     
@@ -605,6 +621,13 @@ async def run_model(
     use_gpu: bool = Form(True),
     create_overlay: bool = Form(True),
 ):
+    global _request_counter
+    
+    # Increment request counter and log nvidia-smi stats every 6 requests
+    _request_counter += 1
+    if _request_counter % 6 == 0:
+        _log_nvidia_smi_stats()
+    
     started = time.time()
     image_path = None
     
@@ -741,6 +764,48 @@ async def run_model(
         )
 
 
+def _log_nvidia_smi_stats():
+    """
+    Logs nvidia-smi GPU statistics.
+    Called every 6 requests from main endpoints.
+    """
+    global _request_counter
+    
+    try:
+        # Query nvidia-smi
+        out = subprocess.check_output([
+            "nvidia-smi",
+            "--query-gpu=uuid,name,utilization.gpu,memory.used,memory.total",
+            "--format=csv,noheader,nounits"
+        ], stderr=subprocess.STDOUT, timeout=2.0)
+        lines = out.decode("utf-8", errors="ignore").strip().splitlines()
+        
+        if lines:
+            logger.info(f"NVIDIA-SMI Stats (Request #{_request_counter}):")
+            for idx, line in enumerate(lines):
+                parts = [p.strip() for p in line.split(",")]
+                if len(parts) >= 5:
+                    uuid, name, util_gpu, mem_used, mem_total = parts[:5]
+                    try:
+                        util_gpu_val = float(util_gpu)
+                        mem_used_val = float(mem_used)
+                        mem_total_val = float(mem_total)
+                        mem_percent = (mem_used_val / mem_total_val) * 100.0 if mem_total_val > 0 else 0.0
+                        
+                        logger.info(
+                            f"  GPU {idx}: {name} | UUID: {uuid} | "
+                            f"Utilization: {util_gpu_val}% | "
+                            f"Memory: {mem_used_val}/{mem_total_val} MB ({mem_percent:.1f}%)"
+                        )
+                    except Exception:
+                        logger.info(f"  GPU {idx}: {name} | UUID: {uuid} | Data: {line}")
+        else:
+            logger.info(f"NVIDIA-SMI Stats (Request #{_request_counter}): No GPU data returned")
+    except Exception:
+        # GPU info not available
+        logger.info(f"NVIDIA-SMI Stats (Request #{_request_counter}): nvidia-smi not available or no GPUs detected")
+
+
 def _collect_system_metrics() -> Dict[str, Any]:
     try:
         import psutil  # installed in container
@@ -821,17 +886,6 @@ def _collect_system_metrics() -> Dict[str, Any]:
         "uptime_seconds": uptime_seconds,
         "gpus": gpus
     }
-
-
-@app.get("/metrics")
-async def get_system_metrics():
-    """
-    Returns instantaneous CPU, RAM, and GPU utilization on the host/container.
-    GPU data requires NVIDIA runtime (nvidia-smi available).
-    """
-    metrics = _collect_system_metrics()
-    metrics["timestamp_epoch_seconds"] = time.time()
-    return JSONResponse(content=metrics)
 
 
 if __name__ == "__main__":
