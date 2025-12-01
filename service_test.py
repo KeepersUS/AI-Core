@@ -36,7 +36,7 @@ import time
 from pathlib import Path
 
 # Configuration
-IP = "https://latest-160413876167.us-central1.run.app"  # Cloud endpoint
+IP = "https://ai-core-787266927042.us-central1.run.app"  # Cloud endpoint
 # IP = "http://localhost:8080"  # For local testing
 USE_GPU = True  # Set to False to use CPU only
 CREATE_OVERLAY = False
