@@ -162,6 +162,8 @@ def _run_grounding_dino(image_path: str, reference_objects: List[Dict[str, Any]]
 
     text_query = ". ".join(INDOOR_BUSINESS_CLASSES) + "."
 
+    # Use the detector's actual device if using pre-warmed instance
+    inference_device = str(detector.device) if hasattr(detector, 'device') else ("cuda" if use_gpu else "cpu")
     try:
         boxes, confidences, labels = predict(
             model=detector.model,
@@ -169,7 +171,7 @@ def _run_grounding_dino(image_path: str, reference_objects: List[Dict[str, Any]]
             caption=text_query,
             box_threshold=detector.box_threshold,
             text_threshold=detector.text_threshold,
-            device=("cpu" if not use_gpu or str(detector.device) == "cpu" else "cuda"),
+            device=inference_device,
         )
     except Exception as e:
         tb = traceback.format_exc()
@@ -504,6 +506,8 @@ async def detect_objects(
         conf_thresh = confidence_threshold if confidence_threshold is not None else detector.confidence_threshold
         
         # Run detection
+        # Use the detector's actual device if using pre-warmed instance
+        inference_device = str(detector.device) if hasattr(detector, 'device') else ("cuda" if use_gpu else "cpu")
         try:
             boxes, confidences, labels = predict(
                 model=detector.model,
@@ -511,7 +515,7 @@ async def detect_objects(
                 caption=text_query,
                 box_threshold=box_thresh,
                 text_threshold=txt_thresh,
-                device=("cpu" if not use_gpu or str(detector.device) == "cpu" else "cuda"),
+                device=inference_device,
             )
         except Exception as e:
             tb = traceback.format_exc()
