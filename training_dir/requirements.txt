@@ -1,0 +1,26 @@
+# Core PyTorch (install based on your CUDA version)
+# For CUDA 11.8: torch>=2.0.0+cu118 torchvision>=0.15.0+cu118
+# For CPU: torch>=2.0.0 torchvision>=0.15.0
+torch>=2.0.0
+torchvision>=0.15.0
+
+# MMLab packages (installed via install_mmdetection.sh, but listed here for reference)
+# mmcv>=2.0.0  # Install via: mim install mmcv
+# mmdet>=3.0.0  # Install via: pip install -e mmdetection/
+# mmengine>=0.8.0
+
+# Utilities
+opencv-python>=4.8.0
+pillow>=9.5.0
+tqdm>=4.65.0
+numpy>=1.24.0
+pycocotools>=2.0.6
+
+# Grounding DINO dependencies
+transformers>=4.30.0
+sentencepiece>=0.1.99
+
+# Build tools (may be needed for compilation)
+setuptools>=65.0.0
+wheel
+
