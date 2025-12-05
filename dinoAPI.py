@@ -98,10 +98,11 @@ def _run_grounding_dino(image_path: str, reference_objects: List[Dict[str, Any]]
     
     if not LOCAL_IMPORT_OK:
         raise HTTPException(
-            status_code=500, 
+            status_code=503,  # Service unavailable - dependencies not ready
             detail={
-                "error": "Failed to import local modules",
-                "message": LOCAL_IMPORT_ERROR_MSG,
+                "error": "Failed to import local project modules",
+                "message": f"Could not import grounding_dino.py or COCO_CLASSES.py: {LOCAL_IMPORT_ERROR_MSG}",
+                "hint": "Ensure grounding_dino.py and COCO_CLASSES.py exist in the project root directory.",
                 "traceback": None
             }
         )
@@ -116,7 +117,7 @@ def _run_grounding_dino(image_path: str, reference_objects: List[Dict[str, Any]]
         except Exception as e:
             tb = traceback.format_exc()
             raise HTTPException(
-                status_code=500, 
+                status_code=503,  # Service unavailable - model initialization failed
                 detail={
                     "error": "Failed to create GroundingDINODetector",
                     "message": str(e),
@@ -127,10 +128,10 @@ def _run_grounding_dino(image_path: str, reference_objects: List[Dict[str, Any]]
 
         if detector.model is None:
             raise HTTPException(
-                status_code=500, 
+                status_code=503,  # Service unavailable - model not loaded
                 detail={
                     "error": "Grounding DINO model not loaded",
-                    "message": "Check weights/config paths",
+                    "message": "Model weights file not found or failed to load. Ensure 'groundingdino_swint_ogc.pth' exists in the weights/ directory.",
                     "detector_device": str(detector.device) if hasattr(detector, 'device') else None
                 }
             )
@@ -141,7 +142,7 @@ def _run_grounding_dino(image_path: str, reference_objects: List[Dict[str, Any]]
     except Exception as e:
         tb = traceback.format_exc()
         raise HTTPException(
-            status_code=500, 
+            status_code=503,  # Service unavailable - missing runtime dependency
             detail={
                 "error": "Missing GroundingDINO runtime dependency",
                 "message": (
@@ -161,10 +162,11 @@ def _run_grounding_dino(image_path: str, reference_objects: List[Dict[str, Any]]
     except Exception as e:
         tb = traceback.format_exc()
         raise HTTPException(
-            status_code=500, 
+            status_code=422,  # Unprocessable entity - image cannot be processed
             detail={
                 "error": "Failed to load image",
                 "message": str(e),
+                "hint": "Ensure the file is a valid image format (JPEG, PNG, etc.) and is not corrupted.",
                 "traceback": tb,
                 "image_path": image_path
             }
@@ -188,8 +190,9 @@ def _run_grounding_dino(image_path: str, reference_objects: List[Dict[str, Any]]
         raise HTTPException(
             status_code=500, 
             detail={
-                "error": "Prediction failed",
+                "error": "Model prediction failed",
                 "message": str(e),
+                "hint": "This may be caused by GPU memory issues, corrupted model weights, or incompatible image format.",
                 "traceback": tb,
                 "text_query": text_query,
                 "box_threshold": detector.box_threshold,
@@ -255,6 +258,7 @@ def _run_grounding_dino(image_path: str, reference_objects: List[Dict[str, Any]]
             detail={
                 "error": "Failed to compute confusion matrix or metrics",
                 "message": str(e),
+                "hint": "This may be caused by malformed reference JSON objects (missing 'class' or 'bbox' fields) or mismatched class names.",
                 "traceback": tb,
                 "num_detections": len(detections_for_cm),
                 "num_references": len(reference_objects)
@@ -347,8 +351,9 @@ async def warmup_model(use_gpu: bool = Form(True)):
         raise HTTPException(
             status_code=503,  # Service unavailable - dependencies not ready
             detail={
-                "error": "Failed to import local modules",
-                "message": LOCAL_IMPORT_ERROR_MSG,
+                "error": "Failed to import local project modules",
+                "message": f"Could not import grounding_dino.py or COCO_CLASSES.py: {LOCAL_IMPORT_ERROR_MSG}",
+                "hint": "Ensure grounding_dino.py and COCO_CLASSES.py exist in the project root directory.",
                 "traceback": None
             }
         )
@@ -370,7 +375,7 @@ async def warmup_model(use_gpu: bool = Form(True)):
     except Exception as e:
         tb = traceback.format_exc()
         raise HTTPException(
-            status_code=500, 
+            status_code=503,  # Service unavailable - model initialization failed
             detail={
                 "error": "Failed to create GroundingDINODetector",
                 "message": str(e),
@@ -385,7 +390,7 @@ async def warmup_model(use_gpu: bool = Form(True)):
             status_code=503,  # Service unavailable - model failed to load
             detail={
                 "error": "Grounding DINO model not loaded",
-                "message": "Check weights/config paths",
+                "message": "Model weights file not found or failed to load. Ensure 'groundingdino_swint_ogc.pth' exists in the weights/ directory.",
                 "detector_device": str(_detector_instance.device) if _detector_instance and hasattr(_detector_instance, 'device') else None
             }
         )
@@ -434,8 +439,9 @@ async def detect_objects(
             raise HTTPException(
                 status_code=503,  # Service unavailable - dependencies not ready
                 detail={
-                    "error": "Failed to import local modules",
-                    "message": LOCAL_IMPORT_ERROR_MSG,
+                    "error": "Failed to import local project modules",
+                    "message": f"Could not import grounding_dino.py or COCO_CLASSES.py: {LOCAL_IMPORT_ERROR_MSG}",
+                    "hint": "Ensure grounding_dino.py and COCO_CLASSES.py exist in the project root directory.",
                     "traceback": None
                 }
             )
@@ -450,7 +456,7 @@ async def detect_objects(
             except Exception as e:
                 tb = traceback.format_exc()
                 raise HTTPException(
-                    status_code=500, 
+                    status_code=503,  # Service unavailable - model initialization failed
                     detail={
                         "error": "Failed to create GroundingDINODetector",
                         "message": str(e),
@@ -461,10 +467,10 @@ async def detect_objects(
 
             if detector.model is None:
                 raise HTTPException(
-                    status_code=500, 
+                    status_code=503,  # Service unavailable - model not loaded
                     detail={
                         "error": "Grounding DINO model not loaded",
-                        "message": "Check weights/config paths",
+                        "message": "Model weights file not found or failed to load. Ensure 'groundingdino_swint_ogc.pth' exists in the weights/ directory.",
                         "detector_device": str(detector.device) if hasattr(detector, 'device') else None
                     }
                 )
@@ -475,10 +481,15 @@ async def detect_objects(
         except Exception as e:
             tb = traceback.format_exc()
             raise HTTPException(
-                status_code=500, 
+                status_code=503,  # Service unavailable - missing runtime dependency
                 detail={
                     "error": "Missing GroundingDINO runtime dependency",
-                    "message": str(e),
+                    "message": (
+                        "GroundingDINO library not installed. "
+                        "Install with: pip install 'git+https://github.com/IDEA-Research/GroundingDINO.git' "
+                        "and ensure torch/torchvision are installed with CUDA support if using GPU."
+                    ),
+                    "original_error": str(e),
                     "traceback": tb
                 }
             )
@@ -490,7 +501,7 @@ async def detect_objects(
         except Exception as e:
             tb = traceback.format_exc()
             raise HTTPException(
-                status_code=500, 
+                status_code=500,  # Internal server error - disk/filesystem issue
                 detail={
                     "error": "Failed to save uploaded image",
                     "message": str(e),
@@ -506,10 +517,11 @@ async def detect_objects(
         except Exception as e:
             tb = traceback.format_exc()
             raise HTTPException(
-                status_code=500, 
+                status_code=422,  # Unprocessable entity - image cannot be processed
                 detail={
                     "error": "Failed to load image",
                     "message": str(e),
+                    "hint": "Ensure the file is a valid image format (JPEG, PNG, etc.) and is not corrupted.",
                     "traceback": tb,
                     "image_path": image_path
                 }
@@ -547,8 +559,9 @@ async def detect_objects(
             raise HTTPException(
                 status_code=500, 
                 detail={
-                    "error": "Prediction failed",
+                    "error": "Model prediction failed",
                     "message": str(e),
+                    "hint": "This may be caused by GPU memory issues, corrupted model weights, or incompatible image format.",
                     "traceback": tb,
                     "text_query": text_query,
                     "box_threshold": box_thresh,
@@ -717,7 +730,7 @@ async def run_model(
         except Exception as e:
             tb = traceback.format_exc()
             raise HTTPException(
-                status_code=500, 
+                status_code=500,  # Internal server error - disk/filesystem issue
                 detail={
                     "error": "Failed to save uploaded image",
                     "message": str(e),
@@ -734,7 +747,7 @@ async def run_model(
         except Exception as e:
             tb = traceback.format_exc()
             raise HTTPException(
-                status_code=500, 
+                status_code=400,  # Bad request - failed to read uploaded JSON file
                 detail={
                     "error": "Failed to read reference JSON",
                     "message": str(e),
