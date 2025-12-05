@@ -329,7 +329,9 @@ async def health_check():
     return JSONResponse(content={
         "status": "healthy",
         "timestamp": time.time(),
-        "model_loaded": _detector_instance is not None
+        "model_loaded": _detector_instance is not None,
+        "device": str(_detector_instance.device) if _detector_instance and hasattr(_detector_instance, 'device') else None,
+        "api_version": app.version
     })
 
 
@@ -355,6 +357,7 @@ async def warmup_model(use_gpu: bool = Form(True)):
     if _detector_instance is not None:
         return JSONResponse(content={
             "status": "already_loaded",
+            "timestamp": time.time(),
             "message": "Model was already loaded",
             "device": str(_detector_instance.device) if hasattr(_detector_instance, 'device') else "unknown"
         })
@@ -391,9 +394,15 @@ async def warmup_model(use_gpu: bool = Form(True)):
     
     return JSONResponse(content={
         "status": "ok",
+        "timestamp": time.time(),
         "message": "Model loaded successfully",
         "load_time_seconds": elapsed,
-        "device": str(_detector_instance.device) if hasattr(_detector_instance, 'device') else "unknown"
+        "device": str(_detector_instance.device) if hasattr(_detector_instance, 'device') else "unknown",
+        "config": {
+            "box_threshold": _detector_instance.box_threshold if hasattr(_detector_instance, 'box_threshold') else None,
+            "text_threshold": _detector_instance.text_threshold if hasattr(_detector_instance, 'text_threshold') else None,
+            "confidence_threshold": _detector_instance.confidence_threshold if hasattr(_detector_instance, 'confidence_threshold') else None
+        }
     })
 
 
@@ -588,11 +597,19 @@ async def detect_objects(
         
         response = {
             "status": "ok",
+            "timestamp": time.time(),
             "image": os.path.basename(image_path),
             "objects": detections,
             "execution_time_seconds": elapsed,
             "image_dimensions": {"width": w, "height": h},
-            "num_detections": len(detections)
+            "num_detections": len(detections),
+            "config": {
+                "box_threshold": box_thresh,
+                "text_threshold": txt_thresh,
+                "confidence_threshold": conf_thresh,
+                "classes_queried": len(class_list),
+                "device": str(detector.device) if hasattr(detector, 'device') else ("cuda" if use_gpu else "cpu")
+            }
         }
         
         return JSONResponse(content=response)
@@ -732,11 +749,22 @@ async def run_model(
         elapsed = time.time() - started
         usage_avg = sampler.stop_and_aggregate()
         
+        # Get device info from detector
+        device_info = str(_detector_instance.device) if _detector_instance and hasattr(_detector_instance, 'device') else ("cuda" if use_gpu else "cpu")
+        
         response = {
             "status": "ok",
+            "timestamp": time.time(),
             "execution_time_seconds": elapsed,
             "comparison_results": result.get("comparison_results"),
+            "image": os.path.basename(image_path) if image_path else None,
             "image_path": image_path,
+            "num_reference_objects": len(reference_objects),
+            "config": {
+                "use_gpu": use_gpu,
+                "create_overlay": create_overlay,
+                "device": device_info
+            },
             "resource_usage_avg": usage_avg
         }
         
