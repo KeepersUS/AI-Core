@@ -890,9 +890,26 @@ def _collect_system_metrics() -> Dict[str, Any]:
 
 if __name__ == "__main__":
     import uvicorn
+    import argparse
 
-    host = os.environ.get("HOST", "0.0.0.0")
-    port = int(os.environ.get("PORT", "8080"))
-    uvicorn.run("dinoAPI:app", host=host, port=port, reload=False)
+    parser = argparse.ArgumentParser(description="Grounding DINO API Server")
+    parser.add_argument(
+        "--local", "-l",
+        action="store_true",
+        help="Run in local development mode (enables hot reload, localhost only)"
+    )
+    args = parser.parse_args()
+
+    if args.local:
+        # Local development: localhost only, hot reload enabled
+        host = "127.0.0.1"
+        port = int(os.environ.get("PORT", "8080"))
+        logger.info("Starting in LOCAL development mode (reload enabled)")
+        uvicorn.run("dinoAPI:app", host=host, port=port, reload=True)
+    else:
+        # Production mode
+        host = os.environ.get("HOST", "0.0.0.0")
+        port = int(os.environ.get("PORT", "8080"))
+        uvicorn.run("dinoAPI:app", host=host, port=port, reload=False)
 
 
