@@ -345,7 +345,7 @@ async def warmup_model(use_gpu: bool = Form(True)):
     
     if not LOCAL_IMPORT_OK:
         raise HTTPException(
-            status_code=500, 
+            status_code=503,  # Service unavailable - dependencies not ready
             detail={
                 "error": "Failed to import local modules",
                 "message": LOCAL_IMPORT_ERROR_MSG,
@@ -382,7 +382,7 @@ async def warmup_model(use_gpu: bool = Form(True)):
     if _detector_instance.model is None:
         _detector_instance = None  # Reset on failure
         raise HTTPException(
-            status_code=500, 
+            status_code=503,  # Service unavailable - model failed to load
             detail={
                 "error": "Grounding DINO model not loaded",
                 "message": "Check weights/config paths",
@@ -432,7 +432,7 @@ async def detect_objects(
     try:
         if not LOCAL_IMPORT_OK:
             raise HTTPException(
-                status_code=500, 
+                status_code=503,  # Service unavailable - dependencies not ready
                 detail={
                     "error": "Failed to import local modules",
                     "message": LOCAL_IMPORT_ERROR_MSG,
