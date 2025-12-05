@@ -1,175 +1,310 @@
 # Image Annotation Tool
 
-A Python-based GUI tool for creating bounding box annotations with automatic object detection using GroundingDINO.
+A Python-based GUI tool for creating bounding box annotations on short-term rental property images. Supports both manual annotation and automatic detection via local GroundingDINO model or remote API.
+
+---
+
+## Quick Start
+
+### Windows
+```bash
+# Double-click to run
+run_annotation_tool.bat
+```
+
+### Mac/Linux
+```bash
+cd annotation-tool
+pip install Pillow
+python3 annotation_tool.py
+```
+
+### With a specific image
+```bash
+python annotation_tool.py ../test_photos/images/kitchen2.jpg
+```
+
+---
 
 ## Features
 
-- 🖼️ **Image Loading**: Support for JPG, JPEG, PNG, BMP, and GIF formats
-- 🤖 **Auto-Detection**: First-pass automatic detection using GroundingDINO
-- ✏️ **Interactive Editing**: 
-  - Draw bounding boxes by clicking and dragging
-  - Move boxes by dragging
-  - Resize boxes using corner/edge handles
-  - Delete boxes with Delete/Backspace keys
-- 🏷️ **Class Labeling**: Assign object classes from customizable dropdown
-- 💾 **JSON Export**: Export annotations in standardized format
-- 📋 **Batch Processing**: Load existing annotations for editing
+### Annotation
+- **Draw bounding boxes** - Click and drag to create
+- **Move boxes** - Drag selected boxes to reposition
+- **Resize boxes** - Drag corner/edge handles
+- **Delete boxes** - Delete or Backspace key
+- **Class labeling** - Searchable dropdown with 100+ rental property objects
+
+### Auto-Detection
+- **Local GroundingDINO** - Run detection on your machine (requires GPU)
+- **API Detection** - Send images to remote detection API
+- **Batch Processing** - Process entire directories via API
+
+### Navigation
+- **Zoom** - Mouse wheel or slider (10% - 500%)
+- **Pan** - Right-click and drag
+- **Reset View** - One-click reset zoom
+
+### Evaluation
+- **Test with Ground Truth** - Compare detections against saved annotations
+- **View metrics** - mAP, F1 score, confusion matrix
+
+---
 
 ## Installation
 
-### Basic Installation (Manual Mode Only)
-
+### Basic (Manual Annotation Only)
 ```bash
 cd annotation-tool
-pip install -r requirements.txt
+pip install Pillow
 ```
 
-### Full Installation (with GroundingDINO)
-
-For automatic detection, you need to install GroundingDINO:
-
+### Full (with Local GroundingDINO)
 ```bash
+# Install PyTorch (visit pytorch.org for your platform)
+pip install torch torchvision
+
 # Install GroundingDINO
 pip install git+https://github.com/IDEA-Research/GroundingDINO.git
-
-# Install PyTorch (if not already installed)
-# Visit https://pytorch.org for platform-specific instructions
 
 # Install other dependencies
 pip install -r requirements.txt
 ```
 
-You'll also need the GroundingDINO model weights in the parent directory's `weights/` folder.
+> **Note**: Local GroundingDINO requires model weights in `../weights/groundingdino_swint_ogc.pth`
+
+### API Mode (Recommended)
+No additional installation needed - just configure the API endpoint in Settings.
+
+---
 
 ## Usage
 
-### Starting the Tool
+### Basic Workflow
 
-```bash
-# Start with file picker
-python annotation_tool.py
-
-# Or open a specific image
-python annotation_tool.py path/to/image.jpg
-```
-
-### Workflow
-
-1. **Load Image**: Click "Open Image" or use File → Open Image
-2. **Auto-Detect** (Optional): Click "Auto-Detect (DINO)" to run GroundingDINO
+1. **Open Image** - Click "Open Image" or File → Open Image
+2. **Auto-Detect** (Optional):
+   - Click **"Auto-Detect (Local)"** for local GroundingDINO
+   - Click **"Auto-Detect (API)"** for remote API detection
 3. **Edit Annotations**:
-   - **Draw**: Click and drag to create a new bounding box
-   - **Select**: Click on an existing box to select it
-   - **Move**: Drag a selected box to move it
-   - **Resize**: Drag the corner/edge handles of a selected box
-   - **Delete**: Select a box and press Delete or Backspace
-   - **Change Class**: Select a box and choose a class from the dropdown
-4. **Save**: Click "Save JSON" to export annotations
+   - Draw new boxes by clicking and dragging
+   - Click to select, drag to move
+   - Drag handles to resize
+   - Press Delete to remove
+4. **Label Objects** - Select box, then pick class from dropdown
+5. **Save** - Click "Save JSON"
 
 ### Keyboard Shortcuts
 
-- **Delete/Backspace**: Delete selected box
-- **Escape**: Deselect all boxes
+| Key | Action |
+|-----|--------|
+| Delete / Backspace | Delete selected box |
+| Escape | Deselect all |
 
-### JSON Format
+### Mouse Controls
 
-The tool exports annotations in the following format:
+| Action | Effect |
+|--------|--------|
+| Left-click + drag (empty) | Draw new box |
+| Left-click (on box) | Select box |
+| Left-drag (selected box) | Move box |
+| Left-drag (handle) | Resize box |
+| Right-click + drag | Pan canvas |
+| Mouse wheel | Zoom in/out |
 
+---
+
+## API Integration
+
+The tool connects to the Grounding DINO API for remote detection.
+
+### Configure API Endpoint
+
+1. Go to **Settings → Configure API Endpoint**
+2. Enter API URL (e.g., `https://ai-core-xxx.run.app`)
+3. Click **Save**
+
+Default: `https://ai-core-787266927042.us-central1.run.app`
+
+### Test Connection
+
+**Settings → Test API Connection** - Checks `/health` endpoint
+
+### API Detection
+
+Click **"Auto-Detect (API)"** to send the current image to the `/detect` endpoint.
+
+### Batch Processing
+
+Process multiple images at once:
+
+1. Click **"Batch Process Dir"** or Edit → Batch Process Directory (API)
+2. Select a folder containing images
+3. The tool will:
+   - Find all images without existing JSON annotations
+   - Send each to the API
+   - Save detection results as JSON files
+
+---
+
+## Model Evaluation
+
+Test the API's detection accuracy against your ground truth annotations:
+
+1. Load an image that has a saved `.json` annotation file
+2. Go to **Evaluate → Test Photo with Ground Truth**
+3. View results:
+   - Mean Average Precision (mAP)
+   - Mean F1 Score
+   - Mean Accuracy
+   - Confusion matrix showing correct/incorrect predictions
+
+---
+
+## JSON Format
+
+### Input/Output
 ```json
 {
-  "image": "image-name.jpg",
+  "image": "kitchen2.jpg",
   "objects": [
     {
-      "class": "chair",
-      "bbox": [x1, y1, x2, y2]
+      "class": "refrigerator",
+      "bbox": [50, 100, 200, 400]
     },
     {
-      "class": "table",
-      "bbox": [x1, y1, x2, y2]
+      "class": "sink",
+      "bbox": [300, 150, 450, 350]
     }
   ]
 }
 ```
 
-Where:
-- `x1, y1`: Top-left corner coordinates
-- `x2, y2`: Bottom-right corner coordinates
+### Bounding Box Format
+`[x1, y1, x2, y2]` - Top-left and bottom-right corners in pixels
 
-## Customization
+---
 
-### Custom Object Classes
+## Customizing Object Classes
 
-Edit `object_list.py` to define your own object classes:
+Edit `object_list.py` to define custom classes:
 
 ```python
 OBJECT_CLASSES = [
-    "my_object_1",
-    "my_object_2",
-    "my_object_3",
+    "bed",
+    "pillow",
+    "refrigerator",
+    # Add your classes...
 ]
 ```
 
-If `object_list.py` is not present, the tool will use default COCO classes.
+The tool includes 100+ pre-defined classes for short-term rentals:
 
-### Manual Annotation Mode
+| Category | Examples |
+|----------|----------|
+| Bedroom | bed, pillow, comforter, nightstand, dresser |
+| Bathroom | toilet, shower curtain, towel, bath mat |
+| Kitchen | refrigerator, oven, microwave, coffee maker |
+| Living Area | couch, sofa, coffee table, television |
+| Damage | stain, chipping damage, ripping damage, grime |
 
-If GroundingDINO is not available, the tool will automatically fall back to manual annotation mode. You can still:
-- Draw bounding boxes manually
-- Edit and label objects
-- Save annotations to JSON
+---
 
-## Output
+## Menu Reference
 
-The tool saves annotations as JSON files with the same base name as the input image:
+### File
+- **Open Image** - Load image file
+- **Save Annotations** - Export to JSON
+- **Exit** - Close application
 
-```
-input: kitchen2.jpg
-output: kitchen2.json
-```
+### Edit
+- **Run GroundingDINO (Local)** - Local model detection
+- **Run API Detection** - Remote API detection
+- **Batch Process Directory (API)** - Process folder
+- **Clear All Boxes** - Remove all annotations
+- **Delete Selected** - Remove selected box
 
-You can also choose a custom output location when saving.
+### Settings
+- **Configure API Endpoint** - Set API URL
+- **Test API Connection** - Health check
+
+### View
+- **Zoom In/Out** - Adjust zoom level
+- **Reset Zoom** - Return to 100%
+- **Resize Image to 640x480** - Permanently resize image
+
+### Evaluate
+- **Test Photo with Ground Truth** - Compare vs saved annotations
+
+---
 
 ## Troubleshooting
 
 ### "GroundingDINO Not Available"
+Normal if not installed. Use **API Detection** instead, or install:
+```bash
+pip install git+https://github.com/IDEA-Research/GroundingDINO.git
+```
 
-This is normal if you haven't installed GroundingDINO. The tool will work in manual mode.
+### "requests library not found"
+Install for API features:
+```bash
+pip install requests
+```
 
-To enable auto-detection:
-1. Install GroundingDINO: `pip install git+https://github.com/IDEA-Research/GroundingDINO.git`
-2. Ensure model weights are in `../weights/` directory
-3. Restart the tool
+### API Connection Failed
+- Check API URL in Settings → Configure API Endpoint
+- Test connection with Settings → Test API Connection
+- Verify network connectivity
 
-### "Failed to load image"
+### Image Won't Load
+- Supported formats: JPG, JPEG, PNG, BMP, GIF
+- Check file isn't corrupted
+- Verify file permissions
 
-Make sure:
-- Image file exists and is accessible
-- Image format is supported (JPG, JPEG, PNG, BMP, GIF)
-- Image is not corrupted
+### Boxes Appear Shifted
+The tool handles scaling automatically. Try:
+1. Reload the image
+2. Reset zoom
+3. Check image dimensions match annotation file
 
-### Bounding boxes appear shifted
+---
 
-This shouldn't happen as the tool handles scaling automatically. If it does:
-1. Check that you're using the latest version
-2. Try reloading the image
-3. Report the issue with the image dimensions
+## File Structure
 
-## Examples
+```
+annotation-tool/
+├── annotation_tool.py     # Main application
+├── object_list.py         # Custom object classes
+├── requirements.txt       # Python dependencies
+├── run_annotation_tool.bat    # Windows launcher
+├── run_annotation_tool.sh     # Unix launcher
+├── README.md              # This file
+└── QUICKSTART.md          # Quick start guide
+```
 
-See the parent directory's `test_photos/` folder for example images and annotations.
+---
 
 ## Requirements
 
+**Required:**
 - Python 3.8+
-- Pillow (for image handling)
+- Pillow (image handling)
 - tkinter (usually included with Python)
 
-Optional:
-- PyTorch (for GroundingDINO)
-- GroundingDINO (for auto-detection)
-- OpenCV (for GroundingDINO)
+**Optional:**
+- requests (for API features)
+- PyTorch + torchvision (for local GroundingDINO)
+- OpenCV (for local GroundingDINO)
+- GroundingDINO (for local auto-detection)
 
-## License
+---
 
-This tool is part of the AI Models Comparison project.
+## Tips
 
+1. **Use API Detection** - Faster setup, no GPU required
+2. **Batch process first** - Generate initial annotations for all images
+3. **Then refine manually** - Fix any detection errors
+4. **Search classes** - Type in the search box to filter the class list
+5. **Zoom for precision** - Use mouse wheel to zoom in for accurate box placement
+6. **Auto-load annotations** - Opening an image automatically loads its JSON if it exists
