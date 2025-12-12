@@ -46,13 +46,6 @@ RUN python3.11 -m pip install --no-cache-dir "numpy>=1.24.0,<2.0.0"
 
 # --- Your app files ---
 COPY dinoAPI.py grounding_dino.py model_tests.py COCO_CLASSES.py ./
-COPY weights/ ./weights/
-
-# Download Grounding DINO weights (not in git due to size)
-RUN curl -L "https://github.com/IDEA-Research/GroundingDINO/releases/download/v0.1.0-alpha/groundingdino_swint_ogc.pth" \
-    -o weights/groundingdino_swint_ogc.pth \
-    && ls -lh weights/groundingdino_swint_ogc.pth \
-    && [ -s weights/groundingdino_swint_ogc.pth ] || (echo "ERROR: Weights file is empty or missing" && exit 1)
 
 # Pre-download BERT model to avoid HuggingFace rate limits at runtime
 RUN python3.11 -c "from transformers import BertModel, BertTokenizer; \
