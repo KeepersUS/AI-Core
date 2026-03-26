@@ -1,0 +1,33 @@
+steps:
+  # Pull model weights from GCS into the build context before Docker build
+  - name: gcr.io/cloud-builders/gsutil
+    args:
+      - cp
+      - gs://keepers-stage-model-weights/checkpoint_best_ema.pth
+      - ai_dev/checkpoint_best_ema.pth
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - us-central1-docker.pkg.dev/keepers-stage/cloud-run-source-deploy/ai-core/ai-core:$COMMIT_SHA
+      - .
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - us-central1-docker.pkg.dev/keepers-stage/cloud-run-source-deploy/ai-core/ai-core:$COMMIT_SHA
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - services
+      - update
+      - ai-core
+      - --image=us-central1-docker.pkg.dev/keepers-stage/cloud-run-source-deploy/ai-core/ai-core:$COMMIT_SHA
+      - --region=us-central1
+      - --project=keepers-stage
+
+images:
+  - us-central1-docker.pkg.dev/keepers-stage/cloud-run-source-deploy/ai-core/ai-core:$COMMIT_SHA
