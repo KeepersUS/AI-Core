@@ -36,6 +36,10 @@ ENV/
 test_photos/
 uploads/
 outputs/
+ai_dev/validation_new_images_CL4/
+ai_dev/validation_new_labels_CL4/
+validation_new_images_CL4/
+validation_new_labels_CL4/
 
 # Unnecessary scripts
 rfdetr.py

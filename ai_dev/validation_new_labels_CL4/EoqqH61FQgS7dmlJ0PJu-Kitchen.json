@@ -1,0 +1,83 @@
+[
+  {
+    "class": "coffee maker",
+    "bbox": [
+      410,
+      188,
+      446,
+      244
+    ]
+  },
+  {
+    "class": "rug",
+    "bbox": [
+      138,
+      370,
+      311,
+      438
+    ]
+  },
+  {
+    "class": "microwave",
+    "bbox": [
+      26,
+      191,
+      134,
+      243
+    ]
+  },
+  {
+    "class": "dishwasher",
+    "bbox": [
+      30,
+      270,
+      117,
+      473
+    ]
+  },
+  {
+    "class": "sink",
+    "bbox": [
+      198,
+      182,
+      315,
+      248
+    ]
+  },
+  {
+    "class": "paper towel roll",
+    "bbox": [
+      347,
+      194,
+      366,
+      235
+    ]
+  },
+  {
+    "class": "refrigerator",
+    "bbox": [
+      552,
+      1,
+      638,
+      478
+    ]
+  },
+  {
+    "class": "toaster",
+    "bbox": [
+      134,
+      207,
+      188,
+      243
+    ]
+  },
+  {
+    "class": "oven/stove",
+    "bbox": [
+      445,
+      238,
+      560,
+      455
+    ]
+  }
+]

@@ -1,0 +1,7 @@
+$kind: collection
+name: RF-DETR API
+variables:
+  baseUrl: http://localhost:8080
+  use_gpu: "true"
+  create_overlay: "false"
+  results: ""

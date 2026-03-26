@@ -1,0 +1,110 @@
+[
+  {
+    "class": "sink",
+    "bbox": [
+      263,
+      241,
+      321,
+      270
+    ]
+  },
+  {
+    "class": "refrigerator",
+    "bbox": [
+      406,
+      155,
+      500,
+      478
+    ]
+  },
+  {
+    "class": "rug",
+    "bbox": [
+      251,
+      321,
+      327,
+      355
+    ]
+  },
+  {
+    "class": "lamp",
+    "bbox": [
+      141,
+      158,
+      185,
+      191
+    ]
+  },
+  {
+    "class": "microwave",
+    "bbox": [
+      186,
+      246,
+      233,
+      271
+    ]
+  },
+  {
+    "class": "paper towel roll",
+    "bbox": [
+      320,
+      244,
+      331,
+      263
+    ]
+  },
+  {
+    "class": "lamp",
+    "bbox": [
+      292,
+      129,
+      337,
+      157
+    ]
+  },
+  {
+    "class": "dishwasher",
+    "bbox": [
+      203,
+      278,
+      228,
+      373
+    ]
+  },
+  {
+    "class": "trashcan",
+    "bbox": [
+      149,
+      427,
+      255,
+      478
+    ]
+  },
+  {
+    "class": "coffee maker",
+    "bbox": [
+      343,
+      241,
+      361,
+      263
+    ]
+  },
+  {
+    "class": "coffee maker",
+    "bbox": [
+      374,
+      243,
+      387,
+      263
+    ]
+  },
+  {
+    "class": "oven/stove",
+    "bbox": [
+      369,
+      246,
+      407,
+      374
+    ]
+  }
+]

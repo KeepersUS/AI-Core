@@ -1,0 +1,21 @@
+$kind: http-request
+url: "{{baseUrl}}/warmup"
+method: POST
+body:
+  type: formdata
+  content:
+    - type: text
+      key: use_gpu
+      value: "{{use_gpu}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('Warmup OK', function () {
+        pm.expect(pm.response.code).to.be.oneOf([200]);
+      });
+      pm.test('Model loaded', function () {
+        const body = pm.response.json();
+        pm.expect(body.status).to.be.oneOf(['ok', 'already_loaded']);
+      });
+    language: text/javascript
+order: 1000

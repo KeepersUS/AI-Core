@@ -1,0 +1,56 @@
+[
+  {
+    "class": "microwave",
+    "bbox": [
+      292,
+      140,
+      381,
+      197
+    ]
+  },
+  {
+    "class": "refrigerator",
+    "bbox": [
+      82,
+      141,
+      256,
+      394
+    ]
+  },
+  {
+    "class": "coffee maker",
+    "bbox": [
+      258,
+      206,
+      282,
+      250
+    ]
+  },
+  {
+    "class": "sink",
+    "bbox": [
+      162,
+      354,
+      589,
+      478
+    ]
+  },
+  {
+    "class": "toaster",
+    "bbox": [
+      384,
+      212,
+      420,
+      245
+    ]
+  },
+  {
+    "class": "oven/stove",
+    "bbox": [
+      289,
+      206,
+      385,
+      365
+    ]
+  }
+]

@@ -1,0 +1,11 @@
+name: GCP GroundingDINO
+values:
+  - key: baseUrl
+    value: 'https://ai-core-787266927042.us-central1.run.app'
+    enabled: true
+  - key: use_gpu
+    value: 'true'
+    enabled: true
+  - key: create_overlay
+    value: 'false'
+    enabled: true

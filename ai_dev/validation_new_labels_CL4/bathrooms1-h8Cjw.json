@@ -1,0 +1,29 @@
+[
+  {
+    "class": "paper towel roll",
+    "bbox": [
+      292,
+      43,
+      496,
+      226
+    ]
+  },
+  {
+    "class": "paper towel roll",
+    "bbox": [
+      363,
+      152,
+      517,
+      275
+    ]
+  },
+  {
+    "class": "paper towel roll",
+    "bbox": [
+      409,
+      4,
+      605,
+      159
+    ]
+  }
+]

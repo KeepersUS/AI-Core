@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "GroundingDINO Performance Tests",
+    "name": "RF-DETR API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_postman_id": "6f1d1a6a-7fff-4a4e-9f3a-collection-groundingdino"
   },
@@ -10,6 +10,44 @@
     { "key": "create_overlay", "value": "false" }
   ],
   "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "pm.test('Status healthy', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.status).to.equal('healthy');",
+                  "});",
+                  "pm.test('model_loaded reported', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('model_loaded');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
     {
       "name": "Warmup",
       "item": [
@@ -38,7 +76,71 @@
                 "exec": [
                   "pm.test('Warmup OK', function () {",
                   "  pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test('Model loaded', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.status).to.be.oneOf(['ok', 'already_loaded']);",
                   "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Detect",
+      "item": [
+        {
+          "name": "Detect objects",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/detect",
+              "host": ["{{baseUrl}}"],
+              "path": ["detect"]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "image", "type": "file", "src": "{{image}}" },
+                { "key": "use_gpu", "type": "text", "value": "{{use_gpu}}" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () {",
+                  "  pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "pm.test('Objects array present', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('objects');",
+                  "  pm.expect(body.objects).to.be.an('array');",
+                  "});",
+                  "pm.test('Detection fields valid', function () {",
+                  "  const body = pm.response.json();",
+                  "  body.objects.forEach(function(obj) {",
+                  "    pm.expect(obj).to.have.property('class');",
+                  "    pm.expect(obj).to.have.property('bbox');",
+                  "    pm.expect(obj).to.have.property('confidence');",
+                  "    pm.expect(obj.bbox).to.have.lengthOf(4);",
+                  "  });",
+                  "});",
+                  "pm.test('Execution time reported', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.execution_time_seconds).to.be.a('number');",
+                  "});",
+                  "try {",
+                  "  const body = pm.response.json();",
+                  "  console.log('Detections:', body.num_detections, '| Time:', body.execution_time_seconds + 's');",
+                  "  console.log('Objects:', JSON.stringify(body.objects));",
+                  "} catch(e) {}"
                 ]
               }
             }
@@ -90,7 +192,6 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "// Capture client and server timings, then fetch system metrics",
                   "let clientMs = pm.response.responseTime;",
                   "let serverMs = 0;",
                   "let meanAp = null;",
@@ -103,8 +204,8 @@
                   "  }",
                   "  if (body && body.comparison_results) {",
                   "    const cr = body.comparison_results || {};",
-                  "    if (typeof cr.mean_ap === 'number') meanAp = cr.mean_ap;",
-                  "    if (typeof cr.mean_f1 === 'number') meanF1 = cr.mean_f1;",
+                  "    if (typeof cr.mean_average_precision === 'number') meanAp = cr.mean_average_precision;",
+                  "    if (typeof cr.mean_f1_score === 'number') meanF1 = cr.mean_f1_score;",
                   "  }",
                   "  if (body && body.resource_usage_avg) {",
                   "    usageAvg = body.resource_usage_avg;",
@@ -127,18 +228,19 @@
                   "  try { pm.environment.set('results', JSON.stringify(results)); } catch(e) {}",
                   "  console.log('RESULT', JSON.stringify(rec));",
                   "",
-                  "  // If this is the last iteration in Runner, render a small table",
                   "  if (pm.info && pm.info.iteration !== undefined && (pm.info.iteration === pm.info.iterationCount - 1)) {",
                   "    const tmpl = `",
                   "      <style>table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px}</style>",
                   "      <table>",
-                  "        <tr><th>#</th><th>Timestamp</th><th>Client ms</th><th>Server ms</th><th>CPU%</th><th>RAM%</th><th>GPU%</th><th>GPU Mem%</th></tr>",
+                  "        <tr><th>#</th><th>Timestamp</th><th>Client ms</th><th>Server ms</th><th>mAP</th><th>mF1</th><th>CPU%</th><th>RAM%</th><th>GPU%</th><th>GPU Mem%</th></tr>",
                   "        {{#each rows}}",
                   "          <tr>",
                   "            <td>{{@index}}</td>",
                   "            <td>{{ts}}</td>",
                   "            <td>{{client_ms}}</td>",
                   "            <td>{{server_ms}}</td>",
+                  "            <td>{{mean_ap}}</td>",
+                  "            <td>{{mean_f1}}</td>",
                   "            <td>{{cpu}}</td>",
                   "            <td>{{ram}}</td>",
                   "            <td>{{gpu}}</td>",
@@ -150,6 +252,8 @@
                   "      ts: r.ts,",
                   "      client_ms: r.client_ms,",
                   "      server_ms: r.server_ms,",
+                  "      mean_ap: r.mean_ap != null ? r.mean_ap.toFixed(4) : '',",
+                  "      mean_f1: r.mean_f1 != null ? r.mean_f1.toFixed(4) : '',",
                   "      cpu: r.metrics && r.metrics.cpu_percent != null ? r.metrics.cpu_percent : '',",
                   "      ram: r.metrics && r.metrics.memory && r.metrics.memory.percent != null ? r.metrics.memory.percent : '',",
                   "      gpu: r.metrics && r.metrics.gpus && r.metrics.gpus[0] && r.metrics.gpus[0].utilization_gpu_percent != null ? r.metrics.gpus[0].utilization_gpu_percent : '',",
@@ -159,7 +263,6 @@
                   "  }",
                   "}",
                   "",
-                  "// Prefer server-side averages if provided; otherwise snapshot /metrics",
                   "if (usageAvg && (typeof usageAvg.cpu_percent_avg === 'number' || typeof usageAvg.gpu_utilization_percent_avg === 'number')) {",
                   "  recordAndMaybeRender({",
                   "    cpu_percent: usageAvg.cpu_percent_avg,",
@@ -167,24 +270,15 @@
                   "    gpus: [{ utilization_gpu_percent: usageAvg.gpu_utilization_percent_avg, memory_percent: usageAvg.gpu_memory_percent_avg }]",
                   "  });",
                   "} else {",
-                  "  pm.sendRequest({",
-                  "    url: pm.variables.replaceIn('{{baseUrl}}/metrics'),",
-                  "    method: 'GET'",
-                  "  }, function (err, res) {",
-                  "    if (err || !res) {",
-                  "      recordAndMaybeRender(null);",
-                  "      return;",
-                  "    }",
-                  "    try {",
-                  "      recordAndMaybeRender(res.json());",
-                  "    } catch (e) {",
-                  "      recordAndMaybeRender(null);",
-                  "    }",
-                  "  });",
+                  "  recordAndMaybeRender(null);",
                   "}",
                   "",
                   "pm.test('HTTP 200', function () {",
                   "  pm.expect(pm.response.code).to.be.oneOf([200]);",
+                  "});",
+                  "pm.test('comparison_results present', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('comparison_results');",
                   "});",
                   "pm.test('Timings captured', function () {",
                   "  pm.expect(clientMs).to.be.a('number');",
@@ -193,17 +287,16 @@
               }
             }
           ]
-        }
-        ,
+        },
         {
           "name": "Visualize results (inline)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/metrics",
+              "raw": "{{baseUrl}}/health",
               "host": ["{{baseUrl}}"],
-              "path": ["metrics"]
+              "path": ["health"]
             }
           },
           "event": [
@@ -216,33 +309,30 @@
                   "let results = [];",
                   "try { results = JSON.parse(raw); } catch(e) { results = []; }",
                   "",
-                  "// Build rows and basic stats for visibility even without Visualize tab",
                   "const toNum = v => typeof v === 'number' && isFinite(v) ? v : null;",
                   "const nums = arr => arr.filter(v => v != null).sort((a,b)=>a-b);",
-                  "const pct = (sorted, p) => { if (!sorted.length) return null; const i = Math.floor((p/100)* (sorted.length-1)); return sorted[i]; };",
-                  "const clientList = nums(results.map(r => toNum(r.client_ms)));",
-                  "const serverList = nums(results.map(r => toNum(r.server_ms)));",
+                  "const pct = (sorted, p) => { if (!sorted.length) return null; const i = Math.floor((p/100)*(sorted.length-1)); return sorted[i]; };",
                   "const sum = arr => arr.reduce((a,b)=>a+b,0);",
                   "const avg = arr => arr.length ? sum(arr)/arr.length : null;",
-                  "const clientAvg = avg(clientList);",
-                  "const serverAvg = avg(serverList);",
-                  "const clientP95 = pct(clientList,95);",
-                  "const serverP95 = pct(serverList,95);",
+                  "const clientList = nums(results.map(r => toNum(r.client_ms)));",
+                  "const serverList = nums(results.map(r => toNum(r.server_ms)));",
                   "pm.test('Rows collected: ' + results.length, function () { pm.expect(true).to.be.true; });",
-                  "pm.test('Client ms avg: ' + (clientAvg!=null?clientAvg.toFixed(1):'n/a'), function () { pm.expect(true).to.be.true; });",
-                  "pm.test('Client ms p95: ' + (clientP95!=null?clientP95.toFixed(1):'n/a'), function () { pm.expect(true).to.be.true; });",
-                  "pm.test('Server ms avg: ' + (serverAvg!=null?serverAvg.toFixed(1):'n/a'), function () { pm.expect(true).to.be.true; });",
-                  "pm.test('Server ms p95: ' + (serverP95!=null?serverP95.toFixed(1):'n/a'), function () { pm.expect(true).to.be.true; });",
+                  "pm.test('Client ms avg: ' + (avg(clientList)!=null?avg(clientList).toFixed(1):'n/a'), function () { pm.expect(true).to.be.true; });",
+                  "pm.test('Client ms p95: ' + (pct(clientList,95)!=null?pct(clientList,95).toFixed(1):'n/a'), function () { pm.expect(true).to.be.true; });",
+                  "pm.test('Server ms avg: ' + (avg(serverList)!=null?avg(serverList).toFixed(1):'n/a'), function () { pm.expect(true).to.be.true; });",
+                  "pm.test('Server ms p95: ' + (pct(serverList,95)!=null?pct(serverList,95).toFixed(1):'n/a'), function () { pm.expect(true).to.be.true; });",
                   "const tmpl = `",
                   "  <style>table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px}</style>",
                   "  <table>",
-                  "    <tr><th>#</th><th>Timestamp</th><th>Client ms</th><th>Server ms</th><th>CPU%</th><th>RAM%</th><th>GPU%</th><th>GPU Mem%</th></tr>",
+                  "    <tr><th>#</th><th>Timestamp</th><th>Client ms</th><th>Server ms</th><th>mAP</th><th>mF1</th><th>CPU%</th><th>RAM%</th><th>GPU%</th><th>GPU Mem%</th></tr>",
                   "    {{#each rows}}",
                   "      <tr>",
                   "        <td>{{@index}}</td>",
                   "        <td>{{ts}}</td>",
                   "        <td>{{client_ms}}</td>",
                   "        <td>{{server_ms}}</td>",
+                  "        <td>{{mean_ap}}</td>",
+                  "        <td>{{mean_f1}}</td>",
                   "        <td>{{cpu}}</td>",
                   "        <td>{{ram}}</td>",
                   "        <td>{{gpu}}</td>",
@@ -254,12 +344,77 @@
                   "  ts: r.ts,",
                   "  client_ms: r.client_ms,",
                   "  server_ms: r.server_ms,",
+                  "  mean_ap: r.mean_ap != null ? r.mean_ap.toFixed(4) : '',",
+                  "  mean_f1: r.mean_f1 != null ? r.mean_f1.toFixed(4) : '',",
+                  "  cpu: r.metrics && r.metrics.cpu_percent != null ? r.metrics.cpu_percent : '',",
+                  "  ram: r.metrics && r.metrics.memory && r.metrics.memory.percent != null ? r.metrics.memory.percent : '',",
+                  "  gpu: r.metrics && r.metrics.gpus && r.metrics.gpus[0] && r.metrics.gpus[0].utilization_gpu_percent != null ? r.metrics.gpus[0].utilization_gpu_percent : '',",
+                  "  gpu_mem: r.metrics && r.metrics.gpus && r.metrics.gpus[0] && r.metrics.gpus[0].memory_percent != null ? r.metrics.gpus[0].memory_percent : ''",
+                  "}));",
+                  "pm.visualizer.set(tmpl, { rows });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Results",
+      "item": [
+        {
+          "name": "Visualize results",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let raw = pm.environment.get('results') || pm.collectionVariables.get('results') || '[]';",
+                  "let results = [];",
+                  "try { results = JSON.parse(raw); } catch(e) { results = []; }",
+                  "",
+                  "const tmpl = `",
+                  "  <style>table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px}</style>",
+                  "  <table>",
+                  "    <tr><th>#</th><th>Timestamp</th><th>Client ms</th><th>Server ms</th><th>mAP</th><th>mF1</th><th>CPU%</th><th>RAM%</th><th>GPU%</th><th>GPU Mem%</th></tr>",
+                  "    {{#each rows}}",
+                  "      <tr>",
+                  "        <td>{{@index}}</td>",
+                  "        <td>{{ts}}</td>",
+                  "        <td>{{client_ms}}</td>",
+                  "        <td>{{server_ms}}</td>",
+                  "        <td>{{mean_ap}}</td>",
+                  "        <td>{{mean_f1}}</td>",
+                  "        <td>{{cpu}}</td>",
+                  "        <td>{{ram}}</td>",
+                  "        <td>{{gpu}}</td>",
+                  "        <td>{{gpu_mem}}</td>",
+                  "      </tr>",
+                  "    {{/each}}",
+                  "  </table>`;",
+                  "const rows = results.map(r => ({",
+                  "  ts: r.ts,",
+                  "  client_ms: r.client_ms,",
+                  "  server_ms: r.server_ms,",
+                  "  mean_ap: r.mean_ap != null ? r.mean_ap.toFixed(4) : '',",
+                  "  mean_f1: r.mean_f1 != null ? r.mean_f1.toFixed(4) : '',",
                   "  cpu: r.metrics && r.metrics.cpu_percent != null ? r.metrics.cpu_percent : '',",
                   "  ram: r.metrics && r.metrics.memory && r.metrics.memory.percent != null ? r.metrics.memory.percent : '',",
                   "  gpu: r.metrics && r.metrics.gpus && r.metrics.gpus[0] && r.metrics.gpus[0].utilization_gpu_percent != null ? r.metrics.gpus[0].utilization_gpu_percent : '',",
                   "  gpu_mem: r.metrics && r.metrics.gpus && r.metrics.gpus[0] && r.metrics.gpus[0].memory_percent != null ? r.metrics.gpus[0].memory_percent : ''",
                   "}));",
                   "pm.visualizer.set(tmpl, { rows });",
+                  "",
                   "pm.test('HTTP 200', function () {",
                   "  pm.expect(pm.response.code).to.be.oneOf([200]);",
                   "});"
@@ -270,120 +425,5 @@
         }
       ]
     }
-  ,{
-    "name": "Metrics",
-    "item": [
-      {
-        "name": "Get system metrics",
-        "request": {
-          "method": "GET",
-          "header": [],
-          "url": {
-            "raw": "{{baseUrl}}/metrics",
-            "host": ["{{baseUrl}}"],
-            "path": ["metrics"]
-          }
-        },
-        "event": [
-          {
-            "listen": "test",
-            "script": {
-              "type": "text/javascript",
-              "exec": [
-                "let data = {};",
-                "try { data = pm.response.json(); } catch(e) { data = {}; }",
-                "pm.test('HTTP 200', function () {",
-                "  pm.expect(pm.response.code).to.be.oneOf([200]);",
-                "});",
-                "const tmpl = `",
-                "  <style>table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px}</style>",
-                "  <table>",
-                "    <tr><th>Timestamp</th><th>CPU%</th><th>RAM%</th><th>GPU%</th><th>GPU Mem%</th></tr>",
-                "    <tr>",
-                "      <td>{{ts}}</td>",
-                "      <td>{{cpu}}</td>",
-                "      <td>{{ram}}</td>",
-                "      <td>{{gpu}}</td>",
-                "      <td>{{gpu_mem}}</td>",
-                "    </tr>",
-                "  </table>`;",
-                "const gpu = (data.gpus && data.gpus[0]) || {};",
-                "pm.visualizer.set(tmpl, {",
-                "  ts: new Date().toISOString(),",
-                "  cpu: data.cpu_percent != null ? data.cpu_percent : '',",
-                "  ram: data.memory && data.memory.percent != null ? data.memory.percent : '',",
-                "  gpu: gpu.utilization_gpu_percent != null ? gpu.utilization_gpu_percent : '',",
-                "  gpu_mem: gpu.memory_percent != null ? gpu.memory_percent : ''",
-                "});"
-              ]
-            }
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "name": "Results",
-    "item": [
-      {
-        "name": "Visualize results",
-        "request": {
-          "method": "GET",
-          "header": [],
-          "url": {
-            "raw": "{{baseUrl}}/metrics",
-            "host": ["{{baseUrl}}"],
-            "path": ["metrics"]
-          }
-        },
-        "event": [
-          {
-            "listen": "test",
-            "script": {
-              "type": "text/javascript",
-              "exec": [
-                "// Read the aggregated results from environment (fallback to collection)",
-                "let raw = pm.environment.get('results') || pm.collectionVariables.get('results') || '[]';",
-                "let results = [];",
-                "try { results = JSON.parse(raw); } catch(e) { results = []; }",
-                "",
-                "const tmpl = `",
-                "  <style>table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px}</style>",
-                "  <table>",
-                "    <tr><th>#</th><th>Timestamp</th><th>Client ms</th><th>Server ms</th><th>CPU%</th><th>RAM%</th><th>GPU%</th><th>GPU Mem%</th></tr>",
-                "    {{#each rows}}",
-                "      <tr>",
-                "        <td>{{@index}}</td>",
-                "        <td>{{ts}}</td>",
-                "        <td>{{client_ms}}</td>",
-                "        <td>{{server_ms}}</td>",
-                "        <td>{{cpu}}</td>",
-                "        <td>{{ram}}</td>",
-                "        <td>{{gpu}}</td>",
-                "        <td>{{gpu_mem}}</td>",
-                "      </tr>",
-                "    {{/each}}",
-                "  </table>`;",
-                "const rows = results.map(r => ({",
-                "  ts: r.ts,",
-                "  client_ms: r.client_ms,",
-                "  server_ms: r.server_ms,",
-                "  cpu: r.metrics && r.metrics.cpu_percent != null ? r.metrics.cpu_percent : '',",
-                "  ram: r.metrics && r.metrics.memory && r.metrics.memory.percent != null ? r.metrics.memory.percent : '',",
-                "  gpu: r.metrics && r.metrics.gpus && r.metrics.gpus[0] && r.metrics.gpus[0].utilization_gpu_percent != null ? r.metrics.gpus[0].utilization_gpu_percent : '',",
-                "  gpu_mem: r.metrics && r.metrics.gpus && r.metrics.gpus[0] && r.metrics.gpus[0].memory_percent != null ? r.metrics.gpus[0].memory_percent : ''",
-                "}));",
-                "pm.visualizer.set(tmpl, { rows });",
-                "",
-                "pm.test('HTTP 200', function () {",
-                "  pm.expect(pm.response.code).to.be.oneOf([200]);",
-                "});"
-              ]
-            }
-          }
-        ]
-      }
-    ]
-  }]
+  ]
 }
-

@@ -1,0 +1,14 @@
+# Use this workspace to collaborate
+workspace:
+  id: c472c711-3cb8-4482-97c8-7689d8b5e5ad
+
+# Each entry here maps a local resource to one or more corresponding objects in Postman Cloud
+cloudResources:
+  collections:
+    ..\postman\collections\RF-DETR API: c191d03d-9641-455c-84d5-7c21964a26c7
+
+# All resources in the `postman/` folder are automatically registered in Local View.
+# Point to additional files outside the `postman/` folder to register them individually. Example:
+#localResources:
+#  collections:
+#    - ../tests/E2E Test Collection/

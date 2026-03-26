@@ -1,0 +1,47 @@
+[
+  {
+    "class": "coffee maker",
+    "bbox": [
+      372,
+      171,
+      405,
+      231
+    ]
+  },
+  {
+    "class": "refrigerator",
+    "bbox": [
+      401,
+      58,
+      639,
+      419
+    ]
+  },
+  {
+    "class": "paper towel roll",
+    "bbox": [
+      257,
+      175,
+      283,
+      227
+    ]
+  },
+  {
+    "class": "sink",
+    "bbox": [
+      57,
+      164,
+      203,
+      240
+    ]
+  },
+  {
+    "class": "oven/stove",
+    "bbox": [
+      345,
+      234,
+      410,
+      418
+    ]
+  }
+]

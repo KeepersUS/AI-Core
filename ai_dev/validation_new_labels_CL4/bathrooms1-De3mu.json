@@ -1,0 +1,29 @@
+[
+  {
+    "class": "toilet paper roll",
+    "bbox": [
+      203,
+      239,
+      293,
+      361
+    ]
+  },
+  {
+    "class": "toilet paper roll",
+    "bbox": [
+      295,
+      261,
+      388,
+      384
+    ]
+  },
+  {
+    "class": "toilet paper roll",
+    "bbox": [
+      241,
+      176,
+      357,
+      308
+    ]
+  }
+]

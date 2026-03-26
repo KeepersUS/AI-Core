@@ -1,0 +1,82 @@
+$kind: http-request
+url: "{{baseUrl}}/health"
+method: GET
+scripts:
+  - type: afterResponse
+    code: >-
+      let raw = pm.environment.get('results') ||
+      pm.collectionVariables.get('results') || '[]';
+
+      let results = [];
+
+      try { results = JSON.parse(raw); } catch(e) { results = []; }
+
+
+      const toNum = v => typeof v === 'number' && isFinite(v) ? v : null;
+
+      const nums = arr => arr.filter(v => v != null).sort((a,b)=>a-b);
+
+      const pct = (sorted, p) => { if (!sorted.length) return null; const i =
+      Math.floor((p/100)*(sorted.length-1)); return sorted[i]; };
+
+      const sum = arr => arr.reduce((a,b)=>a+b,0);
+
+      const avg = arr => arr.length ? sum(arr)/arr.length : null;
+
+      const clientList = nums(results.map(r => toNum(r.client_ms)));
+
+      const serverList = nums(results.map(r => toNum(r.server_ms)));
+
+      pm.test('Rows collected: ' + results.length, function () {
+      pm.expect(true).to.be.true; });
+
+      pm.test('Client ms avg: ' +
+      (avg(clientList)!=null?avg(clientList).toFixed(1):'n/a'), function () {
+      pm.expect(true).to.be.true; });
+
+      pm.test('Client ms p95: ' +
+      (pct(clientList,95)!=null?pct(clientList,95).toFixed(1):'n/a'), function
+      () { pm.expect(true).to.be.true; });
+
+      pm.test('Server ms avg: ' +
+      (avg(serverList)!=null?avg(serverList).toFixed(1):'n/a'), function () {
+      pm.expect(true).to.be.true; });
+
+      pm.test('Server ms p95: ' +
+      (pct(serverList,95)!=null?pct(serverList,95).toFixed(1):'n/a'), function
+      () { pm.expect(true).to.be.true; });
+
+      const tmpl = `
+        <style>table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px}</style>
+        <table>
+          <tr><th>#</th><th>Timestamp</th><th>Client ms</th><th>Server ms</th><th>mAP</th><th>mF1</th><th>CPU%</th><th>RAM%</th><th>GPU%</th><th>GPU Mem%</th></tr>
+          {{#each rows}}
+            <tr>
+              <td>{{@index}}</td>
+              <td>{{ts}}</td>
+              <td>{{client_ms}}</td>
+              <td>{{server_ms}}</td>
+              <td>{{mean_ap}}</td>
+              <td>{{mean_f1}}</td>
+              <td>{{cpu}}</td>
+              <td>{{ram}}</td>
+              <td>{{gpu}}</td>
+              <td>{{gpu_mem}}</td>
+            </tr>
+          {{/each}}
+        </table>`;
+      const rows = results.map(r => ({
+        ts: r.ts,
+        client_ms: r.client_ms,
+        server_ms: r.server_ms,
+        mean_ap: r.mean_ap != null ? r.mean_ap.toFixed(4) : '',
+        mean_f1: r.mean_f1 != null ? r.mean_f1.toFixed(4) : '',
+        cpu: r.metrics && r.metrics.cpu_percent != null ? r.metrics.cpu_percent : '',
+        ram: r.metrics && r.metrics.memory && r.metrics.memory.percent != null ? r.metrics.memory.percent : '',
+        gpu: r.metrics && r.metrics.gpus && r.metrics.gpus[0] && r.metrics.gpus[0].utilization_gpu_percent != null ? r.metrics.gpus[0].utilization_gpu_percent : '',
+        gpu_mem: r.metrics && r.metrics.gpus && r.metrics.gpus[0] && r.metrics.gpus[0].memory_percent != null ? r.metrics.gpus[0].memory_percent : ''
+      }));
+
+      pm.visualizer.set(tmpl, { rows });
+    language: text/javascript
+order: 2000

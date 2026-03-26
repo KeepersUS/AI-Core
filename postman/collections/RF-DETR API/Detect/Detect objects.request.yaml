@@ -1,0 +1,48 @@
+$kind: http-request
+url: "{{baseUrl}}/detect"
+method: POST
+body:
+  type: formdata
+  content:
+    - type: file
+      key: image
+      src:
+        - "{{image}}"
+    - type: text
+      key: use_gpu
+      value: "{{use_gpu}}"
+scripts:
+  - type: afterResponse
+    code: >-
+      pm.test('HTTP 200', function () {
+        pm.expect(pm.response.code).to.equal(200);
+      });
+
+      pm.test('Objects array present', function () {
+        const body = pm.response.json();
+        pm.expect(body).to.have.property('objects');
+        pm.expect(body.objects).to.be.an('array');
+      });
+
+      pm.test('Detection fields valid', function () {
+        const body = pm.response.json();
+        body.objects.forEach(function(obj) {
+          pm.expect(obj).to.have.property('class');
+          pm.expect(obj).to.have.property('bbox');
+          pm.expect(obj).to.have.property('confidence');
+          pm.expect(obj.bbox).to.have.lengthOf(4);
+        });
+      });
+
+      pm.test('Execution time reported', function () {
+        const body = pm.response.json();
+        pm.expect(body.execution_time_seconds).to.be.a('number');
+      });
+
+      try {
+        const body = pm.response.json();
+        console.log('Detections:', body.num_detections, '| Time:', body.execution_time_seconds + 's');
+        console.log('Objects:', JSON.stringify(body.objects));
+      } catch(e) {}
+    language: text/javascript
+order: 1000

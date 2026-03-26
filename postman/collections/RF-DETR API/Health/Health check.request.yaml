@@ -1,0 +1,19 @@
+$kind: http-request
+url: "{{baseUrl}}/health"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('HTTP 200', function () {
+        pm.expect(pm.response.code).to.equal(200);
+      });
+      pm.test('Status healthy', function () {
+        const body = pm.response.json();
+        pm.expect(body.status).to.equal('healthy');
+      });
+      pm.test('model_loaded reported', function () {
+        const body = pm.response.json();
+        pm.expect(body).to.have.property('model_loaded');
+      });
+    language: text/javascript
+order: 1000

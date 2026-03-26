@@ -1,0 +1,20 @@
+[
+  {
+    "class": "washer/dryer",
+    "bbox": [
+      139,
+      1,
+      395,
+      316
+    ]
+  },
+  {
+    "class": "washer/dryer",
+    "bbox": [
+      173,
+      286,
+      401,
+      477
+    ]
+  }
+]
