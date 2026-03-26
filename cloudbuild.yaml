@@ -31,3 +31,6 @@ steps:
 
 images:
   - us-central1-docker.pkg.dev/keepers-stage/cloud-run-source-deploy/ai-core/ai-core:$COMMIT_SHA
+
+options:
+  logging: CLOUD_LOGGING_ONLY
