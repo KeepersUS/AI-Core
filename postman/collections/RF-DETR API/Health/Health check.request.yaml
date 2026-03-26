@@ -11,9 +11,9 @@ scripts:
         const body = pm.response.json();
         pm.expect(body.status).to.equal('healthy');
       });
-      pm.test('model_loaded reported', function () {
+      pm.test('API version 2.0.0', function () {
         const body = pm.response.json();
-        pm.expect(body).to.have.property('model_loaded');
+        pm.expect(body.api_version).to.equal('2.0.0');
       });
     language: text/javascript
 order: 1000

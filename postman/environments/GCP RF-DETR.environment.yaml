@@ -1,4 +1,4 @@
-name: GCP GroundingDINO
+name: GCP RF-DETR
 values:
   - key: baseUrl
     value: 'https://ai-core-787266927042.us-central1.run.app'
