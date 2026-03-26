@@ -1,13 +1,13 @@
 # Single-stage: build + run in one image
-FROM nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 WORKDIR /app
 
-# System deps: Python 3.11 + build tools (build tools kept for potential CUDA extensions in rfdetr)
+# System deps: Python 3.11 + runtime libs
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.11 python3.11-dev python3.11-venv python3.11-distutils \
-    build-essential ninja-build curl ca-certificates \
+    curl ca-certificates \
     libglib2.0-0 libsm6 libxext6 libxrender1 libgomp1 libgl1 \
  && rm -rf /var/lib/apt/lists/*
 
@@ -36,6 +36,8 @@ RUN mkdir -p uploads outputs
 
 EXPOSE 8080
 ENV HOST=0.0.0.0 PORT=8080 PYTHONUNBUFFERED=1
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 ENV WEIGHTS_PATH=/app/ai_dev/checkpoint_best_ema.pth
 ENV THRESHOLDS_PATH=/app/ai_dev/per_class_thresholds_CL4-Martin.json
 
