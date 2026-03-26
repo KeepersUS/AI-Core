@@ -14,14 +14,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # pip
 RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
 
-# PyTorch (CUDA 12.1 wheels)
+# App deps — install torch cu121 and rfdetr together so pip doesn't upgrade
+# torch to the CUDA 13 build that rfdetr would otherwise pull from PyPI.
 RUN python3.11 -m pip install -U pip setuptools wheel && \
     python3.11 -m pip install --no-cache-dir \
       --index-url https://download.pytorch.org/whl/cu121 \
-      torch==2.1.0+cu121 torchvision==0.16.0+cu121
-
-# App deps
-RUN python3.11 -m pip install --no-cache-dir \
+      --extra-index-url https://pypi.org/simple \
+      torch==2.4.1+cu121 torchvision==0.19.1+cu121 \
       "numpy>=1.24.0,<2.0.0" \
       "opencv-python-headless>=4.8.0" \
       "pillow>=9.5.0" \
